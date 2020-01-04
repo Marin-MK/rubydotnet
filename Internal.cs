@@ -8,20 +8,15 @@ namespace RubyDotNET
 {
     public static class Internal
     {
-        public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
+        public const string RubyPath = "lib/ruby.dll";
 
+        public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
         public static Class cObject;
-        public static Class cFile;
-        public static Class cArray;
-        public static Class cHash;
 
         public static void Initialize()
         {
             ruby_init();
             cObject = RubyObject.CreateClass(Eval("Object"));
-            cFile = RubyFile.CreateClass(Eval("File"));
-            cArray = RubyArray.CreateClass(Eval("Array"));
-            cHash = RubyHash.CreateClass(Eval("Hash"));
         }
 
         public static Klass GetKlass(string KlassName)
@@ -96,6 +91,47 @@ namespace RubyDotNET
             SetGlobalVariable("$_temp", QNil);
         }
 
+        public static bool IsType(RubyObject o, int type)
+        {
+            return IsType(o.Pointer, type);
+        }
+
+        public static bool IsType(IntPtr v, int type)
+        {
+            int t = GetType(v);
+            return t == type || type == T_OBJECT;
+        }
+        
+        public static int GetType(IntPtr v)
+        {
+            if (IMMEDIATE_P(v) != 0)
+            {
+                if (FIXNUM_P(v) != 0)
+                {
+                    return T_FIXNUM;
+                }
+                else if (FLONUM_P(v))
+                {
+                    return T_FLOAT;
+                }
+                else if (v.ToInt32() == (int) QTrue)
+                {
+                    return T_TRUE;
+                }
+                else if (SYMBOL_P(v))
+                {
+                    return T_SYMBOL;
+                }
+            }
+            else if (!RB_TEST(v))
+            {
+                if (v.ToInt32() == (int) QNil) return T_NIL;
+                if (v.ToInt32() == (int) QFalse) return T_FALSE;
+            }
+            return BUILTIN_TYPE(v);
+        }
+
+        #region Helper functions
         public static IntPtr LONG2NUM(long v)
         {
             if (RB_FIXABLE(v))
@@ -107,7 +143,7 @@ namespace RubyDotNET
         public static IntPtr RB_INT2FIX(long v)
         {
 #pragma warning disable CS0675 // Bitwise-or operator used on a sign-extended operand
-            return (IntPtr) ((v << 1) | RUBY_FIXNUM_FLAG);
+            return (IntPtr)((v << 1) | RUBY_FIXNUM_FLAG);
 #pragma warning restore CS0675 // Bitwise-or operator used on a sign-extended operand
         }
 
@@ -118,7 +154,7 @@ namespace RubyDotNET
             {
                 return ptr >> 1;
             }
-            return rb_num2long((IntPtr) ptr);
+            return rb_num2long((IntPtr)ptr);
         }
 
         public static bool RB_FIXABLE(long f)
@@ -136,21 +172,84 @@ namespace RubyDotNET
             return f >= RUBY_FIXNUM_MIN;
         }
 
-        public static IntPtr QTrue = (IntPtr) 20;
-        public static IntPtr QFalse = (IntPtr) 0;
-        public static IntPtr QNil = (IntPtr) 8;
+        private static long IMMEDIATE_P(IntPtr v)
+        {
+            return (long)(v) & IMMEDIATE_MASK;
+        }
 
-        public const string RubyPath = "lib/ruby.dll";
+        private static long FIXNUM_P(IntPtr v)
+        {
+            return (((int)(long)(v)) & FIXNUM_FLAG);
+        }
+
+        private static bool FLONUM_P(IntPtr x)
+        {
+            return (((int)(long)(x)) & FLONUM_MASK) == FLONUM_FLAG;
+        }
+
+        private static bool SYMBOL_P(IntPtr x)
+        {
+            return (((long)(x) & ~((~(long)0) << RUBY_SPECIAL_SHIFT)) == SYMBOL_FLAG);
+        }
+
+        private static int BUILTIN_TYPE(IntPtr v)
+        {
+            long flag = Marshal.ReadInt64(v);
+            return (int)(flag & RUBY_T_MASK);
+        }
+
+        private static bool RB_TEST(IntPtr v)
+        {
+            return !(((long)(v) & ~(int)QNil) == 0);
+        }
+        #endregion
 
         #region Constants
+        public static IntPtr QTrue = (IntPtr)20;
+        public static IntPtr QFalse = (IntPtr)0;
+        public static IntPtr QNil = (IntPtr)8;
+
         public static int LONG_MAX = 2147483647;
         public static int LONG_MIN = -LONG_MAX - 1;
 
         public static int RUBY_FIXNUM_FLAG = 0x01;
         public static int RUBY_FIXNUM_MAX = LONG_MAX >> 1;
         public static int RUBY_FIXNUM_MIN = LONG_MIN >> 1;
+
+        private const int FIXNUM_FLAG = 0x01;
+        private const int FLONUM_MASK = 0x03;
+        private const int FLONUM_FLAG = 0x02;
+        private const int IMMEDIATE_MASK = 0x07;
+        private const int RUBY_SPECIAL_SHIFT = 8;
+        private const int SYMBOL_FLAG = 0x0c;
+        private const int RUBY_T_MASK = 0x1f;
+
+        // Class types
+        public static int T_OBJECT = 0x01;
+        public static int T_CLASS = 0x02;
+        public static int T_MODULE = 0x03;
+        public static int T_FLOAT = 0x04;
+        public static int T_STRING = 0x05;
+        public static int T_REGEXP = 0x06;
+        public static int T_ARRAY = 0x07;
+        public static int T_HASH = 0x08;
+        public static int T_STRUCT = 0x09;
+        public static int T_BIGNUM = 0x0a;
+        public static int T_FILE = 0x0b;
+        public static int T_DATA = 0x0c;
+        public static int T_MATCH = 0x0d;
+        public static int T_COMPLEX = 0x0e;
+        public static int T_RATIONAL = 0x0f;
+
+        public static int T_NIL = 0x11;
+        public static int T_TRUE = 0x12;
+        public static int T_FALSE = 0x13;
+        public static int T_SYMBOL = 0x14;
+        public static int T_FIXNUM = 0x15;
+
         #endregion
 
+        #region Imports
         #region Other
         [DllImport(RubyPath)]
         public static extern void ruby_init();
@@ -288,6 +387,7 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_hash_delete(IntPtr Object, IntPtr Key);
+        #endregion
         #endregion
     }
 }

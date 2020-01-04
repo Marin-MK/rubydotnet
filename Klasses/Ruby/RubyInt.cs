@@ -6,19 +6,8 @@ namespace RubyDotNET
 {
     public class RubyInt : RubyObject
     {
-        public new static Class CreateClass(IntPtr Pointer)
-        {
-            Class c = new Class("Fixnum", Pointer);
-            return c;
-        }
-
         public RubyInt(IntPtr Pointer)
-            : base(Pointer)
-        {
-
-        }
-
-        public RubyInt()
+            : base(Pointer, Internal.T_FIXNUM)
         {
 
         }

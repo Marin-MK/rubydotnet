@@ -6,14 +6,8 @@ namespace RubyDotNET
 {
     public class RubyArray : RubyObject
     {
-        public new static Class CreateClass(IntPtr Pointer)
-        {
-            Class c = new Class("Array", Pointer);
-            return c;
-        }
-
         public RubyArray(IntPtr Pointer)
-            : base(Pointer)
+            : base(Pointer, Internal.T_ARRAY)
         {
 
         }

@@ -6,14 +6,8 @@ namespace RubyDotNET
 {
     public class RubyHash : RubyObject
     {
-        public new static Class CreateClass(IntPtr Pointer)
-        {
-            Class c = new Class("Hash", Pointer);
-            return c;
-        }
-
         public RubyHash(IntPtr Pointer)
-            : base(Pointer)
+            : base(Pointer, Internal.T_HASH)
         {
 
         }

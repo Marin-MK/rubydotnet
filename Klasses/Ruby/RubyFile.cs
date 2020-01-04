@@ -6,12 +6,6 @@ namespace RubyDotNET
 {
     public class RubyFile : RubyObject
     {
-        public new static Class CreateClass(IntPtr Pointer)
-        {
-            Class c = new Class("File", Pointer);
-            return c;
-        }
-
         public static RubyFile Open(string Filename, string Mode)
         {
             IntPtr ptr = Internal.rb_file_open(Filename, Mode);
@@ -19,7 +13,10 @@ namespace RubyDotNET
         }
 
         public RubyFile(IntPtr Value)
-            : base(Value) { }
+            : base(Value, Internal.T_FILE)
+        {
+
+        }
 
         public RubyString Read()
         {
