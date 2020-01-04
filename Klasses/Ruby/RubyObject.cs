@@ -4,7 +4,6 @@ using System.Text;
 
 namespace RubyDotNET
 {
-    [System.Diagnostics.DebuggerDisplay("ptr = {Pointer}")]
     public class RubyObject : Klass
     {
         public static Class CreateClass(IntPtr Pointer)
@@ -36,6 +35,11 @@ namespace RubyDotNET
         public void Print()
         {
             Internal.PrintObject(this);
+        }
+
+        public bool IsNil()
+        {
+            return Pointer == Internal.QNil;
         }
     }
 }

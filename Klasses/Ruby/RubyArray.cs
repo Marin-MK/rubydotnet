@@ -118,7 +118,7 @@ namespace RubyDotNET
 
         public override string ToString()
         {
-            return "[..." + Length.ToString() + "...]";
+            return "[... (size " + Length.ToString() + ")]";
         }
     }
 }

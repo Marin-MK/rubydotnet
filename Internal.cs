@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -42,15 +43,50 @@ namespace RubyDotNET
             return rb_gv_get(VariableName);
         }
 
-        public static IntPtr Eval(string Code)
+        /// <summary>
+        /// Evaluates a piece of Ruby code.
+        /// </summary>
+        /// <param name="Code">The string of code to evaluate.</param>
+        /// <param name="PrintError">Whether a given error should be printed to the console.</param>
+        /// <param name="RaiseError">Whether a given error should be re-raised as a C# error.</param>
+        /// <returns></returns>
+        public static IntPtr Eval(string Code, bool PrintError = false, bool ThrowError = true)
         {
-            IntPtr state = IntPtr.Zero;
-            IntPtr Value = rb_eval_string_protect(Code, state);
-            if (state != IntPtr.Zero)
+            IntPtr State = IntPtr.Zero;
+            IntPtr Result = rb_eval_string_protect(Code, ref State);
+            if (State != IntPtr.Zero)
             {
-                throw new Exception("Error.");
+                if (!ThrowError && !PrintError) return IntPtr.Zero;
+                string type = new RubyString(rb_eval_string("$!.class.to_s")).ToString();
+                string msg = type + ": " + new RubyString(rb_eval_string("$!.to_s")).ToString();
+                RubyArray stack = new RubyArray(rb_eval_string("$!.backtrace"));
+                if (stack.Length > 0) msg += "\n\n";
+                for (int i = 0; i < stack.Length; i++)
+                {
+                    string line = stack[i].Convert<RubyString>().ToString();
+                    string[] colons = line.Split(':');
+                    int linenum = Convert.ToInt32(colons[1]);
+                    msg += "Line " + linenum.ToString() + ": ";
+                    for (int j = 2; j < colons.Length; j++)
+                    {
+                        if (colons[j].Length > 3 && colons[j][0] == 'i' && colons[j][1] == 'n' && colons[j][2] == ' ')
+                            colons[j] = colons[j].Replace("in ", "");
+                        msg += colons[j];
+                        if (j != colons.Length - 1) msg += ":";
+                    }
+                    if (i != stack.Length - 1) msg += "\n";
+                }
+                msg = msg[0].ToString().ToUpper() + msg.Substring(1);
+                if (PrintError) Console.WriteLine(msg);
+                if (ThrowError) throw new Exception(msg);
             }
-            return Value;
+            //RubyMethod meth = delegate (int Argc, IntPtr[] Argv, IntPtr Self)
+            //{
+            //    return rb_eval_string(Code);
+            //};
+            //IntPtr Result = rb_protect(meth, IntPtr.Zero, State);
+            //Console.WriteLine(State);
+            return Result;
         }
 
         public static void PrintObject(RubyObject obj)
@@ -58,81 +94,6 @@ namespace RubyDotNET
             SetGlobalVariable("$_temp", obj.Pointer);
             Eval("p $_temp");
             SetGlobalVariable("$_temp", QNil);
-        }
-
-        public static void DoStuff()
-        {
-            Module mRPG = new Module("RPG");
-            Class cTable = Table.CreateClass();
-            Class cTone = Tone.CreateClass();
-            Class cColor = Color.CreateClass();
-            Class cAudioFile = AudioFile.CreateClass();
-            Class cMap = Map.CreateClass();
-            Class cEventCommand = new Class("EventCommand", null, mRPG);
-            Class cMoveCommand = new Class("MoveCommand", null, mRPG);
-            Class cMoveRoute = new Class("MoveRoute", null, mRPG);
-            Class cEvent = new Class("Event", null, mRPG);
-            Class cPage = new Class("Page", null, cEvent);
-            Class cCondition = new Class("Condition", null, cPage);
-            Class cGraphic = new Class("Graphic", null, cPage);
-
-            RubyFile f = RubyFile.Open("D:\\Desktop\\Main Essentials\\Data\\Map002.rxdata", "rb");
-            RubyString RawData = f.Read();
-            f.Close();
-
-            Map map = RubyMarshal.Load<Map>(RawData);
-            
-            RubyArray keys = map.Events.Keys;
-
-            for (int i = 0; i < keys.Length; i++)
-            {
-                Event e = map.Events[keys[i]].Convert<Event>();
-                int pagecount = e.Pages.Length;
-                Console.WriteLine($"EventID: {e.ID}");
-                Console.WriteLine($"EventName: {e.Name}");
-                Console.WriteLine($"EventX: {e.X}");
-                Console.WriteLine($"EventY: {e.Y}");
-                for (int j = 0; j < e.Pages.Length; j++)
-                {
-                    Page p = e.Pages[j].Convert<Page>();
-                    Console.WriteLine($"Page{j}Page: {p}");
-                    Console.WriteLine($"Page{j}MoveType: {p.MoveType}");
-                    Console.WriteLine($"Page{j}MoveSpeed: {p.MoveSpeed}");
-                    Console.WriteLine($"Page{j}MoveFrequency: {p.MoveFrequency}");
-                    Console.WriteLine($"Page{j}WalkAnime: {p.WalkAnime}");
-                    Console.WriteLine($"Page{j}StepAnime: {p.StepAnime}");
-                    Console.WriteLine($"Page{j}DirectionFix: {p.DirectionFix}");
-                    Console.WriteLine($"Page{j}Through: {p.Through}");
-                    Console.WriteLine($"Page{j}AlwaysOnTop: {p.AlwaysOnTop}");
-                    Console.WriteLine($"Page{j}Trigger: {p.Trigger}");
-                    Condition c = p.Condition;
-                    Console.WriteLine($"Page{j}ConditionSwitch1: {c.Switch1ID}-{c.Switch1Valid}");
-                    Console.WriteLine($"Page{j}ConditionSwitch2: {c.Switch2ID}-{c.Switch2Valid}");
-                    Console.WriteLine($"Page{j}ConditionVariable: {c.VariableID}-{c.VariableValue}-{c.VariableValid}");
-                    Console.WriteLine($"Page{j}ConditionSelfSwitch: {c.SelfSwitchChar}-{c.SelfSwitchValid}");
-                    Graphic g = p.Graphic;
-                    Console.WriteLine($"Page{j}GraphicTileID: {g.TileID}");
-                    Console.WriteLine($"Page{j}GraphicCharacterName: {g.CharacterName}");
-                    Console.WriteLine($"Page{j}GraphicCharacterHue: {g.CharacterHue}");
-                    Console.WriteLine($"Page{j}GraphicDirection: {g.Direction}");
-                    Console.WriteLine($"Page{j}GraphicPattern: {g.Pattern}");
-                    Console.WriteLine($"Page{j}GraphicOpacity: {g.Opacity}");
-                    Console.WriteLine($"Page{j}GraphicBlendType: {g.BlendType}");
-                    MoveRoute mr = p.MoveRoute;
-                    Console.WriteLine($"Page{j}MoveRouteRepeat: {mr.Repeat}");
-                    Console.WriteLine($"Page{j}MoveRouteSkippable: {mr.Skippable}");
-                    for (int k = 0; k < mr.List.Length; k++)
-                    {
-                        MoveCommand mc = mr.List[k].Convert<MoveCommand>();
-                        Console.WriteLine($"Page{j}MoveRoute{k}Code : {mc.Code}-{mc.Parameters}");
-                    }
-                    for (int k = 0; k < p.List.Length; k++)
-                    {
-                        EventCommand ec = p.List[k].Convert<EventCommand>();
-                        Console.WriteLine($"Page{j}EventCommand{k} : {ec.Code}-{ec.Indent}-{ec.Parameters}");
-                    }
-                }
-            }
         }
 
         public static IntPtr LONG2NUM(long v)
@@ -178,9 +139,8 @@ namespace RubyDotNET
         public static IntPtr QTrue = (IntPtr) 20;
         public static IntPtr QFalse = (IntPtr) 0;
         public static IntPtr QNil = (IntPtr) 8;
-        public static IntPtr State = Marshal.AllocHGlobal(sizeof(int));
 
-        public const string RubyPath = "libruby.dll";
+        public const string RubyPath = "lib/ruby.dll";
 
         #region Constants
         public static int LONG_MAX = 2147483647;
@@ -189,16 +149,6 @@ namespace RubyDotNET
         public static int RUBY_FIXNUM_FLAG = 0x01;
         public static int RUBY_FIXNUM_MAX = LONG_MAX >> 1;
         public static int RUBY_FIXNUM_MIN = LONG_MIN >> 1;
-
-        public static int RUBY_FL_USHIFT = 12;
-
-        public static int RUBY_FL_USER1 = 1 << (RUBY_FL_USHIFT + 1);
-        public static int RUBY_FL_USER3 = 1 << (RUBY_FL_USHIFT + 3);
-        public static int RUBY_FL_USER4 = 1 << (RUBY_FL_USHIFT + 4);
-
-        public static int RARRAY_EMBED_FLAG = RUBY_FL_USER1;
-        public static int RARRAY_EMBED_LEN_MASK = RUBY_FL_USER4 | RUBY_FL_USER3;
-        public static int RARRAY_EMBED_LEN_SHIFT = RUBY_FL_USHIFT + 3;
         #endregion
 
         #region Other
@@ -206,7 +156,13 @@ namespace RubyDotNET
         public static extern void ruby_init();
 
         [DllImport(RubyPath)]
-        public static extern IntPtr rb_eval_string_protect(string Code, IntPtr state);
+        public static extern IntPtr rb_eval_string(string Code);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_eval_string_protect(string Code, ref IntPtr State);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_protect(RubyMethod Function, IntPtr Arg, IntPtr State);
 
         [DllImport(RubyPath)]
         public static extern void rb_gv_set(string Var, IntPtr Value);
@@ -333,36 +289,5 @@ namespace RubyDotNET
         [DllImport(RubyPath)]
         public static extern IntPtr rb_hash_delete(IntPtr Object, IntPtr Key);
         #endregion
-    }
-
-    public struct RBasic
-    {
-        public IntPtr flags;
-        public IntPtr klass;
-    }
-
-    public struct RArray
-    {
-        public RBasic basic;
-        public RArrayAs _as;
-    }
-
-    public struct RArrayAs
-    {
-        public IntPtr ary;
-        public RArrayAsHeap heap;
-    }
-
-    public struct RArrayAsHeap
-    {
-        public long len;
-        public IntPtr ptr;
-        public RArrayAsHeapAux aux;
-    }
-
-    public struct RArrayAsHeapAux
-    {
-        public long capa;
-        public IntPtr shared_root;
     }
 }

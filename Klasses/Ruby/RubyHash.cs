@@ -51,9 +51,19 @@ namespace RubyDotNET
             }
         }
 
+        public RubyObject GetKey(Predicate<RubyObject> match)
+        {
+            RubyArray keys = this.Keys;
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (match(keys[i])) return keys[i];
+            }
+            return null;
+        }
+
         public override string ToString()
         {
-            return "{..." + Length.ToString() + "...}";
+            return "{... (size " + Length.ToString() + ")}";
         }
     }
 }
