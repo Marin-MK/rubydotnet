@@ -15,16 +15,18 @@ namespace RubyDotNET
         public RubyFile(IntPtr Value)
             : base(Value, Internal.T_FILE)
         {
-
+            
         }
 
         public RubyString Read()
         {
+            AssertUndisposed();
             return new RubyString(Internal.rb_funcallv(this.Pointer, Internal.rb_intern("read"), 0));
         }
 
         public void Close()
         {
+            AssertUndisposed();
             Internal.rb_io_close(this.Pointer);
         }
     }

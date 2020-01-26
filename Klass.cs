@@ -8,6 +8,9 @@ namespace RubyDotNET
     {
         public string KlassName;
         public IntPtr Pointer;
+        // Isn't used for anything, but methods must be added to this list to keep them from being GC'd.
+        // Is guaranteed to throw an error if you try to import more than once without this workaround.
+        private List<Internal.RubyMethod> Methods = new List<Internal.RubyMethod>();
 
         public Klass()
         {
@@ -23,11 +26,13 @@ namespace RubyDotNET
         public void DefineMethod(string Name, Internal.RubyMethod Method)
         {
             Internal.rb_define_method(Pointer, Name, Method, -1);
+            Methods.Add(Method);
         }
 
         public void DefineClassMethod(string Name, Internal.RubyMethod Method)
         {
             Internal.rb_define_singleton_method(Pointer, Name, Method, -1);
+            Methods.Add(Method);
         }
 
         public IntPtr GetIVar(string VarName)

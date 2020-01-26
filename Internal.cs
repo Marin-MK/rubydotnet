@@ -12,11 +12,16 @@ namespace RubyDotNET
 
         public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
         public static Class cObject;
+        public static bool Initialized = false;
+
+        public static Random Random;
 
         public static void Initialize()
         {
             ruby_init();
             cObject = RubyObject.CreateClass(Eval("Object"));
+            Initialized = true;
+            Random = new Random();
         }
 
         public static Klass GetKlass(string KlassName)
@@ -45,9 +50,9 @@ namespace RubyDotNET
         /// <param name="PrintError">Whether a given error should be printed to the console.</param>
         /// <param name="RaiseError">Whether a given error should be re-raised as a C# error.</param>
         /// <returns></returns>
-        public static IntPtr Eval(string Code, bool PrintError = false, bool ThrowError = true)
+        public static IntPtr Eval(string Code, bool PrintError = true, bool ThrowError = true)
         {
-            IntPtr State = IntPtr.Zero;
+            IntPtr State = (IntPtr) 0;
             IntPtr Result = rb_eval_string_protect(Code, ref State);
             if (State != IntPtr.Zero)
             {
@@ -75,60 +80,15 @@ namespace RubyDotNET
                 if (PrintError) Console.WriteLine(msg);
                 if (ThrowError) throw new Exception(msg);
             }
-            //RubyMethod meth = delegate (int Argc, IntPtr[] Argv, IntPtr Self)
-            //{
-            //    return rb_eval_string(Code);
-            //};
-            //IntPtr Result = rb_protect(meth, IntPtr.Zero, State);
-            //Console.WriteLine(State);
             return Result;
         }
 
         public static void PrintObject(RubyObject obj)
         {
+            obj.AssertUndisposed();
             SetGlobalVariable("$_temp", obj.Pointer);
             Eval("p $_temp");
             SetGlobalVariable("$_temp", QNil);
-        }
-
-        public static bool IsType(RubyObject o, int type)
-        {
-            return IsType(o.Pointer, type);
-        }
-
-        public static bool IsType(IntPtr v, int type)
-        {
-            int t = GetType(v);
-            return t == type || type == T_OBJECT;
-        }
-        
-        public static int GetType(IntPtr v)
-        {
-            if (IMMEDIATE_P(v) != 0)
-            {
-                if (FIXNUM_P(v) != 0)
-                {
-                    return T_FIXNUM;
-                }
-                else if (FLONUM_P(v))
-                {
-                    return T_FLOAT;
-                }
-                else if (v.ToInt32() == (int) QTrue)
-                {
-                    return T_TRUE;
-                }
-                else if (SYMBOL_P(v))
-                {
-                    return T_SYMBOL;
-                }
-            }
-            else if (!RB_TEST(v))
-            {
-                if (v.ToInt32() == (int) QNil) return T_NIL;
-                if (v.ToInt32() == (int) QFalse) return T_FALSE;
-            }
-            return BUILTIN_TYPE(v);
         }
 
         #region Helper functions
@@ -259,6 +219,9 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_eval_string_protect(string Code, ref IntPtr State);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_obj_instance_eval(int Argc, IntPtr[] Argv, IntPtr Obj);
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_protect(RubyMethod Function, IntPtr Arg, IntPtr State);

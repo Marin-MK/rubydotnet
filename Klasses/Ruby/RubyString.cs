@@ -20,6 +20,7 @@ namespace RubyDotNET
 
         public override string ToString()
         {
+            AssertUndisposed();
             long len = Internal.rb_str_strlen(this.Pointer);
             return Marshal.PtrToStringUTF8(Internal.rb_string_value_ptr(ref this.Pointer), (int) len);
         }

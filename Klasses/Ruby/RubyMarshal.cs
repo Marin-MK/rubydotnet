@@ -6,9 +6,10 @@ namespace RubyDotNET
 {
     public class RubyMarshal : RubyObject
     {
-        public static T Load<T>(RubyString String)
+        public static T Load<T>(RubyObject Object)
         {
-            IntPtr ptr = Internal.rb_marshal_load(String.Pointer);
+            Object.AssertUndisposed();
+            IntPtr ptr = Internal.rb_marshal_load(Object.Pointer);
             return (T) Activator.CreateInstance(typeof(T), ptr);
         }
     }

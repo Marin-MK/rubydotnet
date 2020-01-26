@@ -33,12 +33,14 @@ namespace RubyDotNET
         {
             get
             {
+                AssertUndisposed();
                 if (Index >= Length)
                     throw new Exception("Index out of bounds.");
                 return new RubyObject(Internal.rb_ary_entry(this.Pointer, Index));
             }
             set
             {
+                AssertUndisposed();
                 if (Index >= Length)
                 {
                     int nils = Index - Length;
@@ -52,23 +54,27 @@ namespace RubyDotNET
         {
             get
             {
-                int v = (int) Internal.NUM2LONG(Internal.rb_funcallv(this.Pointer, Internal.rb_intern("length"), 0));
-                return v;
+                AssertUndisposed();
+                IntPtr ptr = Internal.rb_funcallv(this.Pointer, Internal.rb_intern("length"), 0);
+                return (int) Internal.NUM2LONG(ptr);
             }
         }
 
         public void RemoveAt(int Index)
         {
+            AssertUndisposed();
             Internal.rb_ary_delete_at(this.Pointer, Index);
         }
 
         public void Add(RubyObject Object)
         {
+            AssertUndisposed();
             Internal.rb_ary_push(this.Pointer, Object.Pointer);
         }
 
         public void Each(Iterator iterator)
         {
+            AssertUndisposed();
             for (int i = 0; i < Length; i++)
             {
                 iterator(new RubyObject(Internal.rb_ary_entry(this.Pointer, i)));
@@ -77,6 +83,7 @@ namespace RubyDotNET
 
         public void EachWithIndex(IndexIterator iterator)
         {
+            AssertUndisposed();
             for (int i = 0; i < Length; i++)
             {
                 iterator(new RubyObject(Internal.rb_ary_entry(this.Pointer, i)), i);
@@ -85,6 +92,7 @@ namespace RubyDotNET
 
         public void Map(ReturningIterator iterator)
         {
+            AssertUndisposed();
             for (int i = 0; i < Length; i++)
             {
                 object o = iterator(new RubyObject(Internal.rb_ary_entry(this.Pointer, i)));
@@ -96,6 +104,7 @@ namespace RubyDotNET
 
         public void MapWithIndex(ReturningIndexIterator iterator)
         {
+            AssertUndisposed();
             for (int i = 0; i < Length; i++)
             {
                 object o = iterator(new RubyObject(Internal.rb_ary_entry(this.Pointer, i)), i);
@@ -107,11 +116,13 @@ namespace RubyDotNET
 
         public void Insert(int Index, RubyObject Object)
         {
+            AssertUndisposed();
             Internal.rb_funcallv(this.Pointer, Internal.rb_intern("insert"), 2, Internal.LONG2NUM(Index), Object.Pointer);
         }
 
         public override string ToString()
         {
+            AssertUndisposed();
             return "[... (size " + Length.ToString() + ")]";
         }
     }
