@@ -11,7 +11,8 @@ namespace RubyDotNET
         public const string RubyPath = "lib/ruby.dll";
 
         public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
-        public static Class cObject;
+        public static Class rb_cObject;
+        public static Class rb_eArgumentError;
         public static bool Initialized = false;
 
         public static Random Random;
@@ -19,7 +20,11 @@ namespace RubyDotNET
         public static void Initialize()
         {
             ruby_init();
-            cObject = RubyObject.CreateClass(Eval("Object"));
+            rb_cObject = RubyObject.CreateClass(Eval("Object"));
+            rb_eArgumentError = RubyObject.CreateClass(Eval("ArgumentError"));
+            QNil = Internal.Eval("nil");
+            QTrue = Internal.Eval("true");
+            QFalse = Internal.Eval("false");
             Initialized = true;
             Random = new Random();
         }
@@ -91,6 +96,24 @@ namespace RubyDotNET
             SetGlobalVariable("$_temp", QNil);
         }
 
+        public static int rb_type(IntPtr Obj)
+        {
+            if (RB_IMMEDIATE_P(Obj))
+            {
+                if (RB_FIXNUM_P(Obj)) return T_FIXNUM;
+                if (RB_FLONUM_P(Obj)) return T_FLOAT;
+                if (Obj == QTrue) return T_TRUE;
+                if (RB_STATIC_SYM_P(Obj)) return T_SYMBOL;
+                if (Obj == QUndef) return T_UNDEF;
+            }
+            else if (!RB_TEST(Obj))
+            {
+                if (Obj == QNil) return T_NIL;
+                if (Obj == QFalse) return T_FALSE;
+            }
+            return RB_BUILTIN_TYPE(Obj);
+        }
+
         #region Helper functions
         public static IntPtr LONG2NUM(long v)
         {
@@ -132,42 +155,48 @@ namespace RubyDotNET
             return f >= RUBY_FIXNUM_MIN;
         }
 
-        private static long IMMEDIATE_P(IntPtr v)
+        public static bool RB_IMMEDIATE_P(IntPtr v)
         {
-            return (long)(v) & IMMEDIATE_MASK;
+            return ((long)(v) & IMMEDIATE_MASK) == 1;
         }
 
-        private static long FIXNUM_P(IntPtr v)
+        public static bool RB_FIXNUM_P(IntPtr v)
         {
-            return (((int)(long)(v)) & FIXNUM_FLAG);
+            return (((int)(long)(v)) & FIXNUM_FLAG) == 1;
         }
 
-        private static bool FLONUM_P(IntPtr x)
+        public static bool RB_FLONUM_P(IntPtr x)
         {
             return (((int)(long)(x)) & FLONUM_MASK) == FLONUM_FLAG;
         }
 
-        private static bool SYMBOL_P(IntPtr x)
+        public static bool RB_SYMBOL_P(IntPtr x)
         {
             return (((long)(x) & ~((~(long)0) << RUBY_SPECIAL_SHIFT)) == SYMBOL_FLAG);
         }
 
-        private static int BUILTIN_TYPE(IntPtr v)
+        private static int RB_BUILTIN_TYPE(IntPtr v)
         {
             long flag = Marshal.ReadInt64(v);
             return (int)(flag & RUBY_T_MASK);
         }
 
-        private static bool RB_TEST(IntPtr v)
+        public static bool RB_STATIC_SYM_P(IntPtr v)
+        {
+            return (((long)(v) & ~((~(long) 0) << RUBY_SPECIAL_SHIFT)) == RUBY_SYMBOL_FLAG);
+        }
+
+        public static bool RB_TEST(IntPtr v)
         {
             return !(((long)(v) & ~(int)QNil) == 0);
         }
         #endregion
 
         #region Constants
-        public static IntPtr QTrue = (IntPtr)20;
-        public static IntPtr QFalse = (IntPtr)0;
-        public static IntPtr QNil = (IntPtr)8;
+        public static IntPtr QTrue = (IntPtr) 0x14;
+        public static IntPtr QFalse = (IntPtr) 0x00;
+        public static IntPtr QNil = (IntPtr) 0x08;
+        public static IntPtr QUndef = (IntPtr) 0x34;
 
         public static int LONG_MAX = 2147483647;
         public static int LONG_MIN = -LONG_MAX - 1;
@@ -179,6 +208,7 @@ namespace RubyDotNET
         private const int FIXNUM_FLAG = 0x01;
         private const int FLONUM_MASK = 0x03;
         private const int FLONUM_FLAG = 0x02;
+        private const int RUBY_SYMBOL_FLAG = 0x0c;
         private const int IMMEDIATE_MASK = 0x07;
         private const int RUBY_SPECIAL_SHIFT = 8;
         private const int SYMBOL_FLAG = 0x0c;
@@ -206,8 +236,15 @@ namespace RubyDotNET
         public static int T_FALSE = 0x13;
         public static int T_SYMBOL = 0x14;
         public static int T_FIXNUM = 0x15;
+        public static int T_UNDEF = 0x016;
 
         #endregion
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate IntPtr RubyMethod(IntPtr Self, IntPtr Args);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate IntPtr DangerousFunction(IntPtr Argument);
 
         #region Imports
         #region Other
@@ -224,7 +261,13 @@ namespace RubyDotNET
         public static extern IntPtr rb_obj_instance_eval(int Argc, IntPtr[] Argv, IntPtr Obj);
 
         [DllImport(RubyPath)]
-        public static extern IntPtr rb_protect(RubyMethod Function, IntPtr Arg, IntPtr State);
+        public static extern IntPtr rb_errinfo();
+
+        [DllImport(RubyPath)]
+        public static extern void rb_set_errinfo(IntPtr Value);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_protect(DangerousFunction Function, IntPtr Arg, out IntPtr State);
 
         [DllImport(RubyPath)]
         public static extern void rb_gv_set(string Var, IntPtr Value);
@@ -237,6 +280,12 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern void rb_define_variable(string VarName, IntPtr Object);
+
+        [DllImport(RubyPath)]
+        public static extern void rb_raise(IntPtr Class, string Message);
+
+        [DllImport(RubyPath)]
+        public static extern void rb_require(string Var);
         #endregion
 
         #region Klasses & Methods
@@ -257,9 +306,6 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_define_class_under(IntPtr Klass, string Name, IntPtr InheritedClass);
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate IntPtr RubyMethod(int Argc, IntPtr[] Argv, IntPtr Self);
 
         [DllImport(RubyPath)]
         public static extern void rb_define_method(IntPtr Klass, string Name, [MarshalAs(UnmanagedType.FunctionPtr)]RubyMethod Function, int Argc);
@@ -310,6 +356,12 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_int2big(long Value);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_float_new(double Value);
+
+        [DllImport(RubyPath)]
+        public static extern double rb_num2dbl(IntPtr Value);
         #endregion
 
         #region Array
@@ -354,3 +406,4 @@ namespace RubyDotNET
         #endregion
     }
 }
+

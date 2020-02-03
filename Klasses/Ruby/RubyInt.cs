@@ -7,7 +7,7 @@ namespace RubyDotNET
     public class RubyInt : RubyObject
     {
         public RubyInt(IntPtr Pointer)
-            : base(Pointer, Internal.T_FIXNUM)
+            : base(Pointer)
         {
 
         }

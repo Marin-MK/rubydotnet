@@ -7,7 +7,7 @@ namespace RubyDotNET
     public class RubyArray : RubyObject
     {
         public RubyArray(IntPtr Pointer)
-            : base(Pointer, Internal.T_ARRAY)
+            : base(Pointer)
         {
 
         }

@@ -23,15 +23,15 @@ namespace RubyDotNET
             this.Pointer = Pointer;
         }
 
-        public void DefineMethod(string Name, Internal.RubyMethod Method)
+        public void DefineMethod(string Name, Internal.RubyMethod Method, int Count = -2)
         {
-            Internal.rb_define_method(Pointer, Name, Method, -1);
+            Internal.rb_define_method(Pointer, Name, Method, Count);
             Methods.Add(Method);
         }
 
-        public void DefineClassMethod(string Name, Internal.RubyMethod Method)
+        public void DefineClassMethod(string Name, Internal.RubyMethod Method, int Count = -2)
         {
-            Internal.rb_define_singleton_method(Pointer, Name, Method, -1);
+            Internal.rb_define_singleton_method(Pointer, Name, Method, Count);
             Methods.Add(Method);
         }
 

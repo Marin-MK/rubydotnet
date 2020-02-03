@@ -19,7 +19,7 @@ namespace RubyDotNET
 
         }
 
-        public RubyObject(IntPtr Pointer, int Type = 0x01)
+        public RubyObject(IntPtr Pointer)
         {
             this.Pointer = Pointer;
             Internal.rb_gv_set("$ptr" + Pointer.ToString(), Pointer);
@@ -66,6 +66,12 @@ namespace RubyDotNET
         {
             AssertUndisposed();
             return Pointer == Internal.QNil;
+        }
+
+        public static void ScanArgs(int Argc, RubyArray Args)
+        {
+            if (Args.Length != Argc)
+                Internal.rb_raise(Internal.rb_eArgumentError.Pointer, $"wrong number of arguments (given {Args.Length}, expected {Argc})");
         }
     }
 }

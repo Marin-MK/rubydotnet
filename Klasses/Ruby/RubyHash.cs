@@ -7,7 +7,7 @@ namespace RubyDotNET
     public class RubyHash : RubyObject
     {
         public RubyHash(IntPtr Pointer)
-            : base(Pointer, Internal.T_HASH)
+            : base(Pointer)
         {
 
         }

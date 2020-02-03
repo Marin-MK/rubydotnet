@@ -13,7 +13,7 @@ namespace RubyDotNET
         }
 
         public RubyFile(IntPtr Value)
-            : base(Value, Internal.T_FILE)
+            : base(Value)
         {
             
         }

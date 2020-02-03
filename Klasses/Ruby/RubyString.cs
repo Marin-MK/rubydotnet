@@ -8,7 +8,7 @@ namespace RubyDotNET
     public class RubyString : RubyObject
     {
         public RubyString(IntPtr Data)
-            : base(Data, Internal.T_STRING)
+            : base(Data)
         {
         
         }
