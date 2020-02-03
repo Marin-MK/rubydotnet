@@ -5,11 +5,6 @@ namespace RubyDotNET
 {
     public class Class : Klass
     {
-        public Class()
-        {
-
-        }
-
         public Class(string Name, IntPtr Pointer)
             : base(Name, Pointer) { }
 

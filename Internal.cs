@@ -8,20 +8,28 @@ namespace RubyDotNET
 {
     public static class Internal
     {
-        public const string RubyPath = "lib/ruby.dll";
+        public const string RubyPath = "lib/msvcrt-ruby260.dll";
 
         public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
         public static Class rb_cObject;
         public static Class rb_eArgumentError;
+        public static Class rb_eRuntimeError;
         public static bool Initialized = false;
 
         public static Random Random;
 
         public static void Initialize()
         {
+            int val = 0;
+            IntPtr valptr = Marshal.AllocHGlobal(sizeof(int));
+            Marshal.StructureToPtr(val, valptr, false);
+            string[] data = new string[1] { "" };
+            IntPtr ptr = Marshal.UnsafeAddrOfPinnedArrayElement(data, 0);
+            ruby_sysinit(valptr, ptr);
             ruby_init();
             rb_cObject = RubyObject.CreateClass(Eval("Object"));
             rb_eArgumentError = RubyObject.CreateClass(Eval("ArgumentError"));
+            rb_eRuntimeError = RubyObject.CreateClass(Eval("RuntimeError"));
             QNil = Internal.Eval("nil");
             QTrue = Internal.Eval("true");
             QFalse = Internal.Eval("false");
@@ -86,6 +94,32 @@ namespace RubyDotNET
                 if (ThrowError) throw new Exception(msg);
             }
             return Result;
+        }
+
+        public static string FormatError(IntPtr Error)
+        {
+            Console.WriteLine("started");
+            string type = new RubyString(rb_funcallv(rb_funcallv(Error, rb_intern("class"), 0), rb_intern("to_s"), 0)).ToString();
+            string msg = type + ": " + new RubyString(rb_funcallv(Error, rb_intern("to_s"), 0)).ToString();
+            RubyArray stack = new RubyArray(rb_funcallv(Error, rb_intern("backtrace"), 0));
+            if (stack.Length > 0) msg += "\n\n";
+            for (int i = 0; i < stack.Length; i++)
+            {
+                string line = stack[i].Convert<RubyString>().ToString();
+                string[] colons = line.Split(':');
+                int linenum = Convert.ToInt32(colons[1]);
+                msg += "Line " + linenum.ToString() + ": ";
+                for (int j = 2; j < colons.Length; j++)
+                {
+                    if (colons[j].Length > 3 && colons[j][0] == 'i' && colons[j][1] == 'n' && colons[j][2] == ' ')
+                        colons[j] = colons[j].Replace("in ", "");
+                    msg += colons[j];
+                    if (j != colons.Length - 1) msg += ":";
+                }
+                if (i != stack.Length - 1) msg += "\n";
+            }
+            msg = msg[0].ToString().ToUpper() + msg.Substring(1);
+            return msg;
         }
 
         public static void PrintObject(RubyObject obj)
@@ -249,6 +283,9 @@ namespace RubyDotNET
         #region Imports
         #region Other
         [DllImport(RubyPath)]
+        public static extern void ruby_sysinit(IntPtr Argc, IntPtr Argv);
+
+        [DllImport(RubyPath)]
         public static extern void ruby_init();
 
         [DllImport(RubyPath)]
@@ -286,6 +323,12 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern void rb_require(string Var);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_const_get(IntPtr Object, IntPtr ID);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_const_set(IntPtr Object, IntPtr ID, IntPtr Value);
         #endregion
 
         #region Klasses & Methods
