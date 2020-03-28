@@ -14,6 +14,7 @@ namespace RubyDotNET
         public static Class rb_cObject;
         public static Class rb_eArgumentError;
         public static Class rb_eRuntimeError;
+        public static Class rb_eSystemExit;
         public static bool Initialized = false;
 
         public static Random Random;
@@ -30,6 +31,7 @@ namespace RubyDotNET
             rb_cObject = RubyObject.CreateClass(Eval("Object"));
             rb_eArgumentError = RubyObject.CreateClass(Eval("ArgumentError"));
             rb_eRuntimeError = RubyObject.CreateClass(Eval("RuntimeError"));
+            rb_eSystemExit = RubyObject.CreateClass(Eval("SystemExit"));
             QNil = Internal.Eval("nil");
             QTrue = Internal.Eval("true");
             QFalse = Internal.Eval("false");
@@ -166,12 +168,8 @@ namespace RubyDotNET
 
         public static long NUM2LONG(IntPtr Value)
         {
-            long ptr = Value.ToInt64();
-            if ((ptr & 1) == 1)
-            {
-                return ptr >> 1;
-            }
-            return rb_num2long((IntPtr)ptr);
+            if (RB_FIXNUM_P(Value)) return (int) Value >> 1;
+            return rb_num2ll(Value);
         }
 
         public static bool RB_FIXABLE(long f)
@@ -329,6 +327,9 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_const_set(IntPtr Object, IntPtr ID, IntPtr Value);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_define_finalizer(IntPtr Object, DangerousFunction Value);
         #endregion
 
         #region Klasses & Methods
@@ -395,7 +396,7 @@ namespace RubyDotNET
 
         #region Numeric
         [DllImport(RubyPath)]
-        public static extern long rb_num2long(IntPtr Value);
+        public static extern long rb_num2ll(IntPtr Value);
 
         [DllImport(RubyPath)]
         public static extern IntPtr rb_int2big(long Value);
