@@ -120,6 +120,16 @@ namespace RubyDotNET
             Internal.rb_funcallv(this.Pointer, Internal.rb_intern("insert"), 2, Internal.LONG2NUM(Index), Object.Pointer);
         }
 
+        public IntPtr[] Rubify()
+        {
+            IntPtr[] array = new IntPtr[this.Length];
+            for (int i = 0; i < Length; i++)
+            {
+                array[i] = Internal.rb_ary_entry(this.Pointer, i);
+            }
+            return array;
+        }
+
         public override string ToString()
         {
             AssertUndisposed();

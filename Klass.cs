@@ -35,14 +35,9 @@ namespace RubyDotNET
             Methods.Add(Method);
         }
 
-        public IntPtr GetIVar(string VarName)
+        public void DefineConstant(string Name, IntPtr Value)
         {
-            return Internal.rb_ivar_get(this.Pointer, Internal.rb_intern(VarName));
-        }
-
-        public void SetIVar(string VarName, RubyObject obj)
-        {
-            Internal.rb_ivar_set(this.Pointer, Internal.rb_intern(VarName), obj.Pointer);
+            Internal.rb_define_const(this.Pointer, Name, Value);
         }
     }
 }

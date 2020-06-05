@@ -22,13 +22,11 @@ namespace RubyDotNET
         public RubyObject(IntPtr Pointer)
         {
             this.Pointer = Pointer;
-            Internal.rb_gv_set("$ptr" + Pointer.ToString(), Pointer);
         }
 
         public void Free()
         {
             AssertUndisposed();
-            Internal.rb_gv_set("$ptr" + Pointer.ToString(), Internal.QNil);
             this.Pointer = Internal.QNil;
             this.Freed = true;
         }
@@ -62,6 +60,7 @@ namespace RubyDotNET
             Internal.rb_obj_instance_eval(1, new IntPtr[1] { new RubyString(Code).Pointer }, this.Pointer);
         }
 
+
         public bool IsNil()
         {
             AssertUndisposed();
@@ -72,6 +71,16 @@ namespace RubyDotNET
         {
             if (Args.Length != Argc)
                 Internal.rb_raise(Internal.rb_eArgumentError.Pointer, $"wrong number of arguments (given {Args.Length}, expected {Argc})");
+        }
+
+        public IntPtr GetIVar(string Name)
+        {
+            return Internal.GetIVar(this.Pointer, Name);
+        }
+
+        public IntPtr SetIVar(string Name, IntPtr Value)
+        {
+            return Internal.SetIVar(this.Pointer, Name, Value);
         }
     }
 }

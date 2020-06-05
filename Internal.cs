@@ -8,13 +8,19 @@ namespace RubyDotNET
 {
     public static class Internal
     {
-        public const string RubyPath = "lib/msvcrt-ruby260.dll";
+        public const string RubyPath = "lib/x64-msvcrt-ruby270.dll";
 
         public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
         public static Class rb_cObject;
+        public static Class rb_cString;
+        public static Class rb_cArray;
+        public static Class rb_cFile;
+        public static Class rb_cDir;
+        public static Class rb_cThread;
         public static Class rb_eArgumentError;
         public static Class rb_eRuntimeError;
         public static Class rb_eSystemExit;
+        public static Class ObjectSpace;
         public static bool Initialized = false;
 
         public static Random Random;
@@ -29,12 +35,18 @@ namespace RubyDotNET
             ruby_sysinit(valptr, ptr);
             ruby_init();
             rb_cObject = RubyObject.CreateClass(Eval("Object"));
+            rb_cString = RubyObject.CreateClass(Eval("String"));
+            rb_cArray = RubyObject.CreateClass(Eval("Array"));
+            rb_cFile = RubyObject.CreateClass(Eval("File"));
+            rb_cDir = RubyObject.CreateClass(Eval("Dir"));
+            rb_cThread = RubyObject.CreateClass(Eval("Thread"));
             rb_eArgumentError = RubyObject.CreateClass(Eval("ArgumentError"));
             rb_eRuntimeError = RubyObject.CreateClass(Eval("RuntimeError"));
             rb_eSystemExit = RubyObject.CreateClass(Eval("SystemExit"));
-            QNil = Internal.Eval("nil");
-            QTrue = Internal.Eval("true");
-            QFalse = Internal.Eval("false");
+            QNil = Eval("nil");
+            QTrue = Eval("true");
+            QFalse = Eval("false");
+            ObjectSpace = RubyObject.CreateClass(Eval("ObjectSpace"));
             Initialized = true;
             Random = new Random();
         }
@@ -56,6 +68,16 @@ namespace RubyDotNET
         public static IntPtr GetGlobalVariable(string VariableName)
         {
             return rb_gv_get(VariableName);
+        }
+
+        public static IntPtr SetIVar(IntPtr Self, string Name, IntPtr Value)
+        {
+            return rb_ivar_set(Self, rb_intern(Name), Value);
+        }
+
+        public static IntPtr GetIVar(IntPtr Self, string Name)
+        {
+            return rb_ivar_get(Self, rb_intern(Name));
         }
 
         /// <summary>
@@ -329,7 +351,10 @@ namespace RubyDotNET
         public static extern IntPtr rb_const_set(IntPtr Object, IntPtr ID, IntPtr Value);
 
         [DllImport(RubyPath)]
-        public static extern IntPtr rb_define_finalizer(IntPtr Object, DangerousFunction Value);
+        public static extern IntPtr rb_define_const(IntPtr Parent, string Name, IntPtr Value);
+
+        [DllImport(RubyPath)]
+        public static extern IntPtr rb_define_global_const(string Name, IntPtr Value);
         #endregion
 
         #region Klasses & Methods
@@ -376,6 +401,12 @@ namespace RubyDotNET
 
         [DllImport(RubyPath)]
         public static extern long rb_str_strlen(IntPtr Value);
+
+        [DllImport(RubyPath)]
+        public static unsafe extern char* rb_string_value_cstr(long* Value);
+
+        [DllImport(RubyPath)]
+        public static extern string rb_str_to_cstr(IntPtr Value);
         #endregion
 
         #region Files & IO
