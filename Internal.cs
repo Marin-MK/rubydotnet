@@ -27,6 +27,7 @@ namespace RubyDotNET
 
         public static void Initialize()
         {
+            if (Initialized) return;
             int val = 0;
             IntPtr valptr = Marshal.AllocHGlobal(sizeof(int));
             Marshal.StructureToPtr(val, valptr, false);
