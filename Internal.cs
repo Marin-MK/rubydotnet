@@ -8,17 +8,21 @@ namespace RubyDotNET
 {
     public static class Internal
     {
-        public const string RubyPath = "lib/x64-msvcrt-ruby270.dll";
+        public const string RubyPath = "x64-msvcrt-ruby270";
 
         public static Dictionary<IntPtr, Klass> Klasses = new Dictionary<IntPtr, Klass>();
         public static Class rb_cObject;
         public static Class rb_cString;
+        public static Class rb_cInteger;
+        public static Class rb_cFloat;
         public static Class rb_cArray;
+        public static Class rb_cHash;
         public static Class rb_cFile;
         public static Class rb_cDir;
         public static Class rb_cThread;
         public static Class rb_eArgumentError;
         public static Class rb_eRuntimeError;
+        public static Class rb_eTypeError;
         public static Class rb_eSystemExit;
         public static Class ObjectSpace;
         public static bool Initialized = false;
@@ -37,12 +41,16 @@ namespace RubyDotNET
             ruby_init();
             rb_cObject = RubyObject.CreateClass(Eval("Object"));
             rb_cString = RubyObject.CreateClass(Eval("String"));
+            rb_cInteger = RubyObject.CreateClass(Eval("Integer"));
+            rb_cFloat = RubyObject.CreateClass(Eval("Float"));
             rb_cArray = RubyObject.CreateClass(Eval("Array"));
+            rb_cHash = RubyObject.CreateClass(Eval("Hash"));
             rb_cFile = RubyObject.CreateClass(Eval("File"));
             rb_cDir = RubyObject.CreateClass(Eval("Dir"));
             rb_cThread = RubyObject.CreateClass(Eval("Thread"));
             rb_eArgumentError = RubyObject.CreateClass(Eval("ArgumentError"));
             rb_eRuntimeError = RubyObject.CreateClass(Eval("RuntimeError"));
+            rb_eTypeError = RubyObject.CreateClass(Eval("TypeError"));
             rb_eSystemExit = RubyObject.CreateClass(Eval("SystemExit"));
             QNil = Eval("nil");
             QTrue = Eval("true");
@@ -79,6 +87,53 @@ namespace RubyDotNET
         public static IntPtr GetIVar(IntPtr Self, string Name)
         {
             return rb_ivar_get(Self, rb_intern(Name));
+        }
+
+        public static IntPtr ClassToPointer(RubyClass Class)
+        {
+            switch (Class)
+            {
+                case RubyClass.String:
+                    return rb_cString.Pointer;
+                case RubyClass.Integer:
+                    return rb_cInteger.Pointer;
+                case RubyClass.Float:
+                    return rb_cFloat.Pointer;
+                case RubyClass.Array:
+                    return rb_cArray.Pointer;
+                case RubyClass.Hash:
+                    return rb_cHash.Pointer;
+                default:
+                    throw new Exception($"Unknown Ruby Class: {Class}.");
+            }
+        }
+
+        public static void EnsureType(IntPtr Object, RubyClass Class)
+        {
+            if (!IsType(Object, Class))
+            {
+                rb_raise(rb_eTypeError.Pointer, $"expected object of type {Class.ToString()}, but got a {new RubyString(rb_funcallv(rb_funcallv(Object, rb_intern("class"), 0), rb_intern("to_s"), 0))} instead.");
+            }
+        }
+
+        public static void EnsureType(IntPtr Object, IntPtr Class, string Name)
+        {
+            if (!IsType(Object, Class))
+            {
+                rb_raise(rb_eTypeError.Pointer, $"expected object of type {Name}, but got a {new RubyString(rb_funcallv(rb_funcallv(Object, rb_intern("class"), 0), rb_intern("to_s"), 0))} instead.");
+            }
+        }
+
+        public static bool IsType(IntPtr Object, RubyClass Class)
+        {
+            if (Class == RubyClass.Nil) return rb_funcallv(Object, rb_intern("nil?"), 0) == QTrue;
+            else if (Class == RubyClass.Bool) return Object == QTrue || Object == QFalse;
+            return rb_funcallv(Object, rb_intern("is_a?"), 1, new IntPtr[] { ClassToPointer(Class) }) == QTrue;
+        }
+
+        public static bool IsType(IntPtr Object, IntPtr Class)
+        {
+            return rb_funcallv(Object, rb_intern("is_a?"), 1, new IntPtr[] { Class }) == QTrue;
         }
 
         /// <summary>
@@ -481,5 +536,15 @@ namespace RubyDotNET
         #endregion
         #endregion
     }
-}
 
+    public enum RubyClass
+    {
+        String,
+        Integer,
+        Float,
+        Array,
+        Hash,
+        Nil,
+        Bool
+    }
+}
