@@ -1,4 +1,4 @@
-# RubyDotNET
+# rubydotnet
 
 Provides a simple wrapper around some Ruby functions to make loading Ruby data easier.
 

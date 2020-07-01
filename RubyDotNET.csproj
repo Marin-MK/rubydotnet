@@ -8,6 +8,8 @@
     <Configurations>Debug</Configurations>
     <ApplicationIcon />
     <StartupObject />
+    <AssemblyName>rubydotnet</AssemblyName>
+    <RootNamespace>rubydotnet</RootNamespace>
   </PropertyGroup>
 
 </Project>
