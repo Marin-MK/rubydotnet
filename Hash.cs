@@ -1,52 +1,59 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Runtime.InteropServices;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public class Hash : Object
+        public static class Hash
         {
-            public new static string KlassName = "Hash";
-            public new static Class Class { get { return (Class) GetKlass(KlassName); } }
-
-            public Hash(IntPtr Pointer) : base(Pointer, true) { }
-
-            public Hash() : base(rb_hash_new(), false) { }
-
-            public Array Keys
+            public static IntPtr Keys(IntPtr Object)
             {
-                get => new Array(rb_hash_keys(this.Pointer));
+                return rb_hash_keys(Object);
             }
 
-            public Array Values
+            public static IntPtr Values(IntPtr Object)
             {
-                get => new Array(rb_hash_values(this.Pointer));
+                return rb_hash_values(Object);
             }
 
-            public int Length
+            public static IntPtr Get(IntPtr Object, IntPtr Key)
             {
-                get => new Integer(rb_hash_size(this.Pointer));
+                return rb_hash_aref(Object, Key);
             }
 
-            public Object this[Object Key]
+            public static void Set(IntPtr Object, IntPtr Key, IntPtr Value)
             {
-                get => new Object(rb_hash_aref(this.Pointer, Key.Pointer), false);
-                set => rb_hash_aset(this.Pointer, Key.Pointer, value.Pointer);
+                rb_hash_aset(Object, Key, Value);
             }
 
-            public override string ToString()
+            public static int Length(IntPtr Object)
             {
-                string String = "{";
-                Array keys = this.Keys;
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    String += keys[i].Inspect() + " => " + this[keys[i]].Inspect();
-                    if (i != Length - 1) String += ", ";
-                }
-                return String + "}";
+                return (int) Integer.FromPtr(rb_hash_size(Object));
             }
+
+            public static IntPtr Create()
+            {
+                return rb_hash_new();
+            }
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_new();
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_keys(IntPtr Object);
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_values(IntPtr Object);
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_aref(IntPtr Object, IntPtr Key);
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_aset(IntPtr Object, IntPtr Key, IntPtr Value);
+
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_hash_size(IntPtr Object);
         }
     }
 }

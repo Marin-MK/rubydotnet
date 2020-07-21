@@ -1,68 +1,31 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public class Module : Object
+        public static class Module
         {
-            public static Dictionary<Module, Type> CustomModules = new Dictionary<Module, Type>();
-
-            public string Name;
-
-            public Module(IntPtr Pointer, string Name) : base(Pointer, true)
+            public static IntPtr Define(string Name)
             {
-                this.Name = Name;
+                return rb_define_module(Name);
+            }
+            
+            public static IntPtr Define(string Name, IntPtr Parent)
+            {
+                return rb_define_module_under(Parent, Name);
             }
 
-            public static Module DefineModule<T>(string Name, Object UnderKlass = null) where T : Object
+            public static void DefineMethod(IntPtr Class, string Name, RubyMethod Method)
             {
-                if (UnderKlass != null && !(UnderKlass is Class) && !(UnderKlass is Module)) throw new Exception("Invalid parent klass");
-                IntPtr modptr = IntPtr.Zero;
-                if (UnderKlass == null) modptr = rb_define_module(Name);
-                else modptr = rb_define_module_under(UnderKlass.Pointer, Name);
-                Module mod = new Module(modptr, Name);
-                CustomModules.Add(mod, typeof(T));
-                return mod;
-            }
-            public static Module DefineModule<T>(string Name, string UnderKlass = null) where T : Object
-            {
-                return DefineModule<T>(Name, GetKlass(UnderKlass));
-            }
-            public static Module DefineModule<T>(string Name) where T : Object
-            {
-                return DefineModule<T>(Name, (Module) null);
+                Object.MethodCache.Add(Method);
+                rb_define_method(Class, Name, Method, -2);
             }
 
-            List<object> MethodCache = new List<object>();
-
-            public override string ToString()
+            public static void DefineClassMethod(IntPtr Class, string Name, RubyMethod Method)
             {
-                return Name;
-            }
-
-            public void DefineMethod(string Name, Method Method)
-            {
-                InternalMethod imethod = delegate (IntPtr Self, IntPtr Args)
-                {
-                    return Method(new Object(Self, false), new Array(Args)).Pointer;
-                };
-                MethodCache.Add(imethod);
-                MethodCache.Add(Method);
-                rb_define_method(this.Pointer, Name, imethod, -2);
-            }
-
-            public void DefineClassMethod(string Name, Method Method)
-            {
-                InternalMethod imethod = delegate (IntPtr Self, IntPtr Args)
-                {
-                    return Method(new Module(Self, KlassName), new Array(Args)).Pointer;
-                };
-                MethodCache.Add(imethod);
-                MethodCache.Add(Method);
-                rb_define_singleton_method(this.Pointer, Name, imethod, -2);
+                Object.MethodCache.Add(Method);
+                rb_define_singleton_method(Class, Name, Method, -2);
             }
         }
     }

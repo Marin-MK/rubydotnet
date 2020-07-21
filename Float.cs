@@ -1,104 +1,32 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Runtime.InteropServices;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public class Float : Object
+        public static class Float
         {
-            public new static string KlassName = "Float";
-            public new static Class Class { get { return (Class) GetKlass(KlassName); } }
-
-            public Float(IntPtr Pointer) : base(Pointer, true) { }
-
-            public Float(double Value) : base(DBL2NUM(Value), false) { }
-
-            public double ToDouble()
+            public static IntPtr ToPtr(double Value)
             {
-                return NUM2DBL(this.Pointer);
-            }
-            public override string ToString()
-            {
-                return ToDouble().ToString();
+                return rb_float_new(Value);
             }
 
-            public static Float operator +(Float One, Float Two)
+            public static double FromPtr(IntPtr Value)
             {
-                return new Float(One.ToDouble() + Two.ToDouble());
-            }
-            public static Float operator +(Float One, Integer Two)
-            {
-                return new Float(One.ToDouble() + Two.ToInt64());
-            }
-            public static Float operator +(Integer One, Float Two)
-            {
-                return new Float(One.ToInt64() + Two.ToDouble());
-            }
-            public static Float operator ++(Float One)
-            {
-                return new Float(One.ToDouble() + 1);
+                return rb_num2dbl(Value);
             }
 
-            public static Float operator -(Float One, Float Two)
+            public static int RoundFromPtr(IntPtr Value)
             {
-                return new Float(One.ToDouble() - Two.ToDouble());
-            }
-            public static Float operator -(Float One, Integer Two)
-            {
-                return new Float(One.ToDouble() - Two.ToInt64());
-            }
-            public static Float operator -(Integer One, Float Two)
-            {
-                return new Float(One.ToInt64() - Two.ToDouble());
-            }
-            public static Float operator --(Float One)
-            {
-                return new Float(One.ToDouble() - 1);
+                return (int) Math.Round(FromPtr(Value));
             }
 
-            public static Float operator *(Float One, Float Two)
-            {
-                return new Float(One.ToDouble() * Two.ToDouble());
-            }
-            public static Float operator *(Float One, Integer Two)
-            {
-                return new Float(One.ToDouble() * Two.ToInt64());
-            }
-            public static Float operator *(Integer One, Float Two)
-            {
-                return new Float(One.ToInt64() * Two.ToDouble());
-            }
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_float_new(double Value);
 
-            public static Float operator /(Float One, Float Two)
-            {
-                return new Float(One.ToDouble() / Two.ToDouble());
-            }
-            public static Float operator /(Float One, Integer Two)
-            {
-                return new Float(One.ToDouble() / Two.ToInt64());
-            }
-            public static Float operator /(Integer One, Float Two)
-            {
-                return new Float(One.ToInt64() / Two.ToDouble());
-            }
-
-            public static Float operator %(Float One, Float Two)
-            {
-                return new Float(One.ToDouble() % Two.ToDouble());
-            }
-            public static Float operator %(Float One, Integer Two)
-            {
-                return new Float(One.ToDouble() % Two.ToInt64());
-            }
-            public static Float operator %(Integer One, Float Two)
-            {
-                return new Float(One.ToInt64() % Two.ToDouble());
-            }
-
-            public static implicit operator double(Float f) => f.ToDouble();
-            public static implicit operator Float(double d) => new Float(d);
+            [DllImport(RubyPath)]
+            static extern double rb_num2dbl(IntPtr Value);
         }
     }
 }

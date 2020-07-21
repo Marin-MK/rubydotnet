@@ -1,219 +1,58 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Runtime.InteropServices;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public class Integer : Object
+        public static class Integer
         {
-            public new static string KlassName = "Integer";
-            public new static Class Class { get { return (Class) GetKlass(KlassName); } }
-
-            public Integer(IntPtr Pointer) : base(Pointer, true) { }
-
-            public Integer(int Value) : base(INT2NUM(Value), false) { }
-
-            public Integer(long Value) : base(LONG2NUM(Value), false) { }
-
-            public int ToInt32()
+            public static IntPtr ToPtr(long Value)
             {
-                return NUM2INT(this.Pointer);
-            }
-            public long ToInt64()
-            {
-                return NUM2LONG(this.Pointer);
-            }
-            public override string ToString()
-            {
-                return ToInt64().ToString();
+                if (RB_FIXABLE(Value)) return RB_INT2FIX(Value);
+                else return rb_int2big(Value);
             }
 
-            public static Integer operator +(Integer One, Integer Two)
+            public static long FromPtr(IntPtr Value)
             {
-                return new Integer(One.ToInt64() + Two.ToInt64());
-            }
-            public static Integer operator +(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() + Two);
-            }
-            public static Integer operator +(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() + Two);
-            }
-            public static Integer operator +(int One, Integer Two)
-            {
-                return new Integer(One + Two.ToInt64());
-            }
-            public static Integer operator +(long One, Integer Two)
-            {
-                return new Integer(One + Two.ToInt64());
-            }
-            public static Integer operator ++(Integer One)
-            {
-                return new Integer(One.ToInt64() + 1);
-            }
-            
-            public static Integer operator -(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() - Two.ToInt64());
-            }
-            public static Integer operator -(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() - Two);
-            }
-            public static Integer operator -(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() - Two);
-            }
-            public static Integer operator -(int One, Integer Two)
-            {
-                return new Integer(One - Two.ToInt64());
-            }
-            public static Integer operator -(long One, Integer Two)
-            {
-                return new Integer(One - Two.ToInt64());
-            }
-            public static Integer operator --(Integer One)
-            {
-                return new Integer(One.ToInt64() - 1);
+                if (RB_FIXNUM_P(Value)) return (int) Value >> 1;
+                return rb_num2ll(Value);
             }
 
-            public static Integer operator *(Integer One, Integer Two)
+            static bool RB_FIXABLE(long f)
             {
-                return new Integer(One.ToInt64() * Two.ToInt64());
+                return RB_POSFIXABLE(f) && RB_NEGFIXABLE(f);
             }
-            public static Integer operator *(Integer One, int Two)
+            static bool RB_POSFIXABLE(long f)
             {
-                return new Integer(One.ToInt64() * Two);
+                return f < RUBY_FIXNUM_MAX + 1;
             }
-            public static Integer operator *(Integer One, long Two)
+            static bool RB_NEGFIXABLE(long f)
             {
-                return new Integer(One.ToInt64() * Two);
+                return f >= RUBY_FIXNUM_MIN;
             }
-            public static Integer operator *(int One, Integer Two)
+            static bool RB_FIXNUM_P(IntPtr v)
             {
-                return new Integer(One * Two.ToInt64());
+                return (((int) (long) (v)) & RUBY_FIXNUM_FLAG) == 1;
             }
-            public static Integer operator *(long One, Integer Two)
-            {
-                return new Integer(One * Two.ToInt64());
-            }
-
-            public static Integer operator /(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() / Two.ToInt64());
-            }
-            public static Integer operator /(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() / Two);
-            }
-            public static Integer operator /(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() / Two);
-            }
-            public static Integer operator /(int One, Integer Two)
-            {
-                return new Integer(One / Two.ToInt64());
-            }
-            public static Integer operator /(long One, Integer Two)
-            {
-                return new Integer(One / Two.ToInt64());
-            }
-
-            public static Integer operator %(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() % Two.ToInt64());
-            }
-            public static Integer operator %(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() % Two);
-            }
-            public static Integer operator %(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() % Two);
-            }
-            public static Integer operator %(int One, Integer Two)
-            {
-                return new Integer(One % Two.ToInt64());
-            }
-            public static Integer operator %(long One, Integer Two)
-            {
-                return new Integer(One % Two.ToInt64());
-            }
-
-            public static Integer operator |(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() | Two.ToInt64());
-            }
-            public static Integer operator |(Integer One, int Two)
+            static IntPtr RB_INT2FIX(long v)
             {
 #pragma warning disable CS0675 // Bitwise-or operator used on a sign-extended operand
-                return new Integer(One.ToInt64() | Two);
+                return (IntPtr) ((v << 1) | RUBY_FIXNUM_FLAG);
 #pragma warning restore CS0675 // Bitwise-or operator used on a sign-extended operand
             }
-            public static Integer operator |(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() | Two);
-            }
-            public static Integer operator |(int One, Integer Two)
-            {
-#pragma warning disable CS0675 // Bitwise-or operator used on a sign-extended operand
-                return new Integer(One | Two.ToInt64());
-#pragma warning restore CS0675 // Bitwise-or operator used on a sign-extended operand
-            }
-            public static Integer operator |(long One, Integer Two)
-            {
-                return new Integer(One | Two.ToInt64());
-            }
 
-            public static Integer operator &(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() & Two.ToInt64());
-            }
-            public static Integer operator &(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() & Two);
-            }
-            public static Integer operator &(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() & Two);
-            }
-            public static Integer operator &(int One, Integer Two)
-            {
-                return new Integer(One & Two.ToInt64());
-            }
-            public static Integer operator &(long One, Integer Two)
-            {
-                return new Integer(One & Two.ToInt64());
-            }
+            static int LONG_MAX = 2147483647;
+            static int LONG_MIN = -LONG_MAX - 1;
+            static int RUBY_FIXNUM_FLAG = 0x01;
+            static int RUBY_FIXNUM_MAX = LONG_MAX >> 1;
+            static int RUBY_FIXNUM_MIN = LONG_MIN >> 1;
 
-            public static Integer operator ^(Integer One, Integer Two)
-            {
-                return new Integer(One.ToInt64() ^ Two.ToInt64());
-            }
-            public static Integer operator ^(Integer One, int Two)
-            {
-                return new Integer(One.ToInt64() ^ Two);
-            }
-            public static Integer operator ^(Integer One, long Two)
-            {
-                return new Integer(One.ToInt64() ^ Two);
-            }
-            public static Integer operator ^(int One, Integer Two)
-            {
-                return new Integer(One ^ Two.ToInt64());
-            }
-            public static Integer operator ^(long One, Integer Two)
-            {
-                return new Integer(One ^ Two.ToInt64());
-            }
+            [DllImport(RubyPath)]
+            static extern IntPtr rb_int2big(long Value);
 
-            public static implicit operator int(Integer i) => i.ToInt32();
-            public static implicit operator long(Integer i) => i.ToInt64();
-            public static implicit operator Integer(int i) => new Integer(i);
-            public static implicit operator Integer(long l) => new Integer(l);
+            [DllImport(RubyPath)]
+            static extern long rb_num2ll(IntPtr Value);
         }
     }
 }

@@ -1,25 +1,23 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public delegate Object Method(Object self, Array Args);
-        public delegate Object Proc(Object Args);
-        delegate IntPtr InternalMethod(IntPtr self, IntPtr args);
-        delegate IntPtr ProtectedMethod(IntPtr arg);
-        delegate IntPtr BlockMethod(IntPtr block_arg, IntPtr data, int Argc, IntPtr[] Argv);
+        public delegate IntPtr ProtectedMethod(IntPtr Arg);
+        public delegate IntPtr RubyMethod(IntPtr Self, IntPtr Args);
+        public delegate IntPtr BlockMethod(IntPtr BlockArgs, IntPtr Self, IntPtr Args);
 
         public const string RubyPath = "x64-msvcrt-ruby270";
         public const string Version = "2.7.0";
 
-        public static NilClass Nil;
-        public static TrueClass True;
-        public static FalseClass False;
+        public static IntPtr True  = (IntPtr) 0x14;
+        public static IntPtr False = (IntPtr) 0x00;
+        public static IntPtr Nil   = (IntPtr) 0x08;
+        public static IntPtr Undef = (IntPtr) 0x34;
 
         static bool Initialized = false;
 
@@ -27,11 +25,19 @@ namespace rubydotnet
         {
             if (Initialized) return;
             ruby_init();
-            Nil = new NilClass();
-            True = new TrueClass();
-            False = new FalseClass();
-            Object.Class = Eval("Object").Convert<Class>();
             Initialized = true;
+        }
+
+        public static void Pin(IntPtr Object)
+        {
+            if (GetGlobal("$__rdncache__") == Nil) SetGlobal("$__rdncache__", Array.Create());
+            if (Funcall(GetGlobal("$__rdncache__"), "include?", Object) == False) Funcall(GetGlobal("$__rdncache__"), "push", Object);
+        }
+
+        public static void Unpin(IntPtr Object)
+        {
+            if (GetGlobal("$__rdncache__") == Nil) return;
+            if (Funcall(GetGlobal("$__rdncache__"), "include?", Object) == True) Funcall(GetGlobal("$__rdncache__"), "delete", Object);
         }
 
         /// <summary>
@@ -40,67 +46,25 @@ namespace rubydotnet
         /// </summary>
         public static void Reset()
         {
-            foreach (KeyValuePair<Class, Type> kvp in Class.CustomClasses)
-            {
-                FieldInfo info = kvp.Value.GetField("KlassName", BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                string klassname = (string) info.GetValue(null);
-                Object parent = Object.Class;
-                if (klassname.Contains("::"))
-                {
-                    string[] klasses = klassname.Split("::");
-                    string pklass = "";
-                    for (int i = 0; i < klasses.Length - 1; i++)
-                    {
-                        pklass += klasses[i];
-                        if (i != klasses.Length - 2) pklass += "::";
-                    }
-                    parent = Object.GetKlass(pklass);
-                    klassname = klasses.Last();
-                }
-                parent.Funcall("instance_eval", delegate (Ruby.Object Arg)
-                {
-                    return Arg.Funcall("remove_const", new Ruby.Symbol(klassname));
-                });
-            }
-            foreach (KeyValuePair<Module, Type> kvp in Module.CustomModules)
-            {
-                FieldInfo info = kvp.Value.GetField("KlassName", BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                string klassname = (string) info.GetValue(null);
-                Object parent = Object.Class;
-                if (klassname.Contains("::"))
-                {
-                    string[] klasses = klassname.Split("::");
-                    string pklass = "";
-                    for (int i = 0; i < klasses.Length - 1; i++)
-                    {
-                        pklass += klasses[i];
-                        if (i != klasses.Length - 2) pklass += "::";
-                    }
-                    parent = Object.GetKlass(pklass);
-                    klassname = klasses.Last();
-                }
-                parent.Funcall("instance_eval", delegate (Ruby.Object Arg)
-                {
-                    return Arg.Funcall("remove_const", new Ruby.Symbol(klassname));
-                });
-            }
-            Array gvars = new Array(rb_f_global_variables());
-            gvars.Pin();
-            Symbol[] gvkeep = new Symbol[]
+            IntPtr gvars = rb_f_global_variables();
+            Pin(gvars);
+            string[] gvkeep = new string[]
             {
                 "$VERBOSE", "$-v", "$-w", "$stdin", "$stdout", "$&", "$`", "$'", "$+", "$=", "$KCODE", "$-K", "$>", "$-W",
                 "$DEBUG", "$stderr", "$0", "$PROGRAM_NAME", "$,", "$/", "$-0", "$\\", "$FILENAME", "$.", "$<", "$SAFE", "$*",
                 "$-i", "$:", "$-I", "$LOAD_PATH", "$\"", "$LOADED_FEATURES", "$_", "$~", "$!", "$@", "$;", "$-F", "$?", "$$", "$-d"
             };
-            for (int i = 0; i < gvars.Length; i++)
+            long gvarlen = Array.Length(gvars);
+            for (int i = 0; i < gvarlen; i++)
             {
-                if (!gvkeep.Contains(gvars[i].Convert<Symbol>()))
+                string sym = Symbol.FromPtr(Array.Get(gvars, i));
+                if (!gvkeep.Contains(sym))
                 {
-                    rb_gv_set(gvars[i].Convert<Symbol>().ToString().Substring(1), QNil);
+                    rb_gv_set(sym, Nil);
                 }
             }
-            gvars.Unpin();
-            Symbol[] ckeep = new Symbol[]
+            Unpin(gvars);
+            string[] ckeep = new string[]
             {
                 "SystemExit", "IO", "SignalException", "Interrupt", "StandardError", "TypeError", "ArgumentError", "IndexError",
                 "KeyError", "RangeError", "ScriptError", "SyntaxError", "LoadError", "Random", "NotImplementedError", "NameError",
@@ -116,59 +80,66 @@ namespace rubydotnet
                 "UnicodeNormalize", "Range", "BasicObject", "Object", "Module", "Class", "EOFError", "Kernel", "Symbol", "Exception",
                 "IOError", "Process"
             };
-            Array consts = Object.Class.Funcall("constants").Convert<Array>();
-            consts.Pin();
-            for (int i = 0; i < consts.Length; i++)
+            IntPtr consts = Funcall(Object.Class, "constants");
+            Pin(consts);
+            long constslen = Array.Length(consts);
+            for (int i = 0; i < constslen; i++)
             {
-                if (!ckeep.Contains(consts[i].Convert<Symbol>()))
+                string constant = Symbol.FromPtr(Array.Get(consts, i));
+                if (!ckeep.Contains(constant))
                 {
-                    Object.Class.Funcall("remove_const", consts[i]);
+                    Funcall(Object.Class, "remove_const", Array.Get(consts, i));
                 }
             }
-            consts.Unpin();
-            Class.CustomClasses.Clear();
-            Module.CustomModules.Clear();
+            Unpin(consts);
         }
 
         public static void Raise(ErrorType ErrorType, string Message = null)
         {
-            rb_raise(Object.GetKlass(ErrorType.ToString()).Pointer, Message ?? "");
+            rb_raise(GetConst(Object.Class, ErrorType.ToString()), Message ?? "");
         }
 
-        public static void SetGlobal(string Name, Object obj)
-        {
-            rb_gv_set(Name, obj.Pointer);
-        }
-
-        public static Object Eval(string Code, bool PrintError = true, bool ThrowError = true)
+        #region Code Evaluation
+        public static IntPtr Eval(string Code, bool PrintError = true, bool ThrowError = true)
         {
             IntPtr State = IntPtr.Zero;
-            IntPtr Result = rb_eval_string_protect(Code, ref State);
+            IntPtr ptr = rb_eval_string_protect(Code, ref State);
             if (State != IntPtr.Zero) RaiseException(PrintError, ThrowError);
-            return new Object(Result, false);
+            return ptr;
+        }
+
+        public static void Load(string File)
+        {
+            Require(File);
+        }
+        public static void Require(string File)
+        {
+            SafeRuby(delegate (IntPtr Arg)
+            {
+                rb_require(File);
+                return IntPtr.Zero;
+            });
         }
 
         static IntPtr SafeRuby(ProtectedMethod Method)
         {
-            return SafeRuby(Method, IntPtr.Zero);
-        }
-        static IntPtr SafeRuby(ProtectedMethod Method, IntPtr Argument)
-        {
             IntPtr State = IntPtr.Zero;
-            IntPtr Result = rb_protect(Method, Argument, ref State);
+            IntPtr Result = rb_protect(Method, Nil, ref State);
             if (State != IntPtr.Zero) RaiseException();
             return Result;
         }
 
         static void RaiseException(bool PrintError = true, bool ThrowError = true)
         {
-            string type = NUM2STR(rb_eval_string("$!.class.to_s"));
-            string msg = type + ": " + Eval("$!.to_s").Convert<String>();
-            Array stack = Eval("$!.backtrace").Convert<Array>();
-            if (stack.Length > 0) msg += "\n\n";
-            for (int i = 0; i < stack.Length; i++)
+            IntPtr Err = rb_gv_get("$!");
+            string type = String.FromPtr(Funcall(Funcall(Err, "class"), "to_s"));
+            string msg = type + ": " + String.FromPtr(Funcall(Err, "to_s"));
+            IntPtr Backtrace = Funcall(Err, "backtrace");
+            long length = Array.Length(Backtrace);
+            if (length > 0) msg += "\n\n";
+            for (int i = 0; i < length; i++)
             {
-                string line = stack[i].ToString();
+                string line = String.FromPtr(Array.Get(Backtrace, i));
                 string[] colons = line.Split(':');
                 int? linenum = null;
                 if (System.Text.RegularExpressions.Regex.IsMatch(colons[1], @"/\d+/"))
@@ -184,143 +155,123 @@ namespace rubydotnet
                     if (j != colons.Length - 1) msg += ":";
                 }
                 if (linenum != null) msg += " line " + linenum.ToString();
-                if (i != stack.Length - 1) msg += "\n";
+                if (i != length - 1) msg += "\n";
             }
             msg = msg[0].ToString().ToUpper() + msg.Substring(1);
             if (PrintError) Console.WriteLine(msg);
             if (ThrowError) throw new Exception(msg);
         }
 
-        static IntPtr LONG2NUM(long Value)
+        public static IntPtr Funcall(IntPtr Object, string Method, params IntPtr[] Args)
         {
-            if (RB_FIXABLE(Value)) return RB_INT2FIX(Value);
-            else return rb_int2big(Value);
+            return rb_funcallv(Object, rb_intern(Method), Args.Length, Args);
         }
-        static long NUM2LONG(IntPtr Value)
+        #endregion
+
+        #region Variable Shortcuts
+        public static IntPtr GetGlobal(string Name)
         {
-            if (RB_FIXNUM_P(Value)) return (int) Value >> 1;
-            return rb_num2ll(Value);
+            return rb_gv_get(Name);
         }
-        static long NUM2LONG(Integer Value)
+        public static void SetGlobal(string Name, IntPtr Value)
         {
-            return NUM2LONG(Value.Pointer);
+            rb_gv_set(Name, Value);
         }
 
-        static IntPtr INT2NUM(int Value)
+        public static IntPtr GetIVar(IntPtr Object, string Name)
         {
-            return RB_INT2FIX(Value);
+            return rb_ivar_get(Object, rb_intern(Name));
         }
-        static IntPtr INT2NUM(long Value)
+        public static IntPtr SetIVar(IntPtr Object, string Name, IntPtr Value)
         {
-            if (RB_FIXABLE(Value)) return RB_INT2FIX(Value);
-            else throw new Exception("Cannot cast Int64 into Fixnum");
+            return rb_ivar_set(Object, rb_intern(Name), Value);
         }
-        static int NUM2INT(IntPtr Value)
+        #endregion
+
+        #region Type Validation
+        public static void Expect(IntPtr Object, params string[] Class)
         {
-            if (RB_FIXNUM_P(Value)) return (int) Value >> 1;
-            else throw new Exception("Cannot cast Ruby Int64 into a Int32");
-        }
-        static int NUM2INT(Integer Value)
-        {
-            return NUM2INT(Value.Pointer);
+            if (!Is(Object, Class))
+            {
+                string classstr = "";
+                for (int i = 0; i < Class.Length; i++)
+                {
+                    classstr += Class[i];
+                    if (i == Class.Length - 2) classstr += " or ";
+                    else if (i < Class.Length - 2) classstr += ", ";
+                }
+                Raise(ErrorType.ArgumentError, $"expected {classstr}, but got {GetClassName(Object)} instead.");
+            }
         }
 
-        static IntPtr STR2NUM(string Value)
+        public static bool Is(IntPtr Object, params string[] Class)
         {
-            return rb_str_new(Value, Value.Length);
-        }
-        static string NUM2STR(IntPtr Value)
-        {
-            int len = NUM2INT(rb_funcallv(Value, rb_intern("bytesize"), 0));
-            return System.Runtime.InteropServices.Marshal.PtrToStringUTF8(rb_string_value_ptr(ref Value), len);
-        }
-        static string NUM2STR(String Value)
-        {
-            return NUM2STR(Value.Pointer);
+            for (int i = 0; i < Class.Length; i++)
+            {
+                if (GetClassName(Object) == Class[i]) return true;
+            }
+            return false;
         }
 
-        static IntPtr DBL2NUM(double Value)
+        public static IntPtr GetClass(IntPtr Object)
         {
-            return rb_float_new(Value);
-        }
-        static double NUM2DBL(IntPtr Value)
-        {
-            return rb_num2dbl(Value);
-        }
-        static double NUM2DBL(Float Value)
-        {
-            return NUM2DBL(Value.Pointer);
+            return Funcall(Object, "class");
         }
 
-        public static long ToInt64(this DateTime time)
+        public static string GetClassName(IntPtr Object)
         {
-            return (long) Math.Round(time.Subtract(new DateTime(1970, 1, 1)).TotalMilliseconds);
+            return String.FromPtr(Funcall(GetClass(Object), "to_s"));
         }
 
-        #region Internal utility
-        static bool RB_FIXABLE(long f)
+        public static bool IVarIs(IntPtr Object, string Variable, params string[] Class)
         {
-            return RB_POSFIXABLE(f) && RB_NEGFIXABLE(f);
+            return Is(GetIVar(Object, Variable), Class);
+        }
+        #endregion
+
+        #region Constants
+        public static IntPtr GetConst(IntPtr Object, string Name)
+        {
+            return Funcall(Object, "const_get", String.ToPtr(Name));
         }
 
-        static bool RB_POSFIXABLE(long f)
+        public static void SetConst(IntPtr Object, string Name, IntPtr Value)
         {
-            return f < RUBY_FIXNUM_MAX + 1;
+            Funcall(Object, "const_set", String.ToPtr(Name), Value);
         }
+        #endregion
 
-        static bool RB_NEGFIXABLE(long f)
+        #region Block Methods
+        public static void RequireBlock()
         {
-            return f >= RUBY_FIXNUM_MIN;
+            rb_need_block();
         }
-
-        static bool RB_FIXNUM_P(IntPtr v)
+        public static bool HasBlock()
         {
-            return (((int) (long) (v)) & FIXNUM_FLAG) == 1;
+            return rb_block_given_p();
         }
-
-        static IntPtr RB_INT2FIX(long v)
+        public static IntPtr GetBlock()
         {
-#pragma warning disable CS0675 // Bitwise-or operator used on a sign-extended operand
-            return (IntPtr) ((v << 1) | RUBY_FIXNUM_FLAG);
-#pragma warning restore CS0675 // Bitwise-or operator used on a sign-extended operand
+            return rb_block_proc();
         }
-
-        static IntPtr QTrue  = (IntPtr) 0x14;
-        static IntPtr QFalse = (IntPtr) 0x00;
-        static IntPtr QNil   = (IntPtr) 0x08;
-        static IntPtr QUndef = (IntPtr) 0x34;
-
-        static int LONG_MAX = 2147483647;
-        static int LONG_MIN = -LONG_MAX - 1;
-
-        static int RUBY_FIXNUM_FLAG = 0x01;
-        static int RUBY_FIXNUM_MAX = LONG_MAX >> 1;
-        static int RUBY_FIXNUM_MIN = LONG_MIN >> 1;
-
-        const int FIXNUM_FLAG = 0x01;
-        const int FLONUM_MASK = 0x03;
-        const int FLONUM_FLAG = 0x02;
-        const int RUBY_SYMBOL_FLAG = 0x0c;
-        const int IMMEDIATE_MASK = 0x07;
-        const int RUBY_SPECIAL_SHIFT = 8;
-        const int SYMBOL_FLAG = 0x0c;
-        const int RUBY_T_MASK = 0x1f;
+        public static IntPtr Yield(IntPtr Value)
+        {
+            return rb_yield(Value);
+        }
+        #endregion
 
         public enum ErrorType
         {
             RuntimeError,
             ArgumentError,
-            TypeError
+            TypeError,
+            SystemExit
         }
-        #endregion
 
         #region Import
         #region Utility
         [DllImport(RubyPath)]
         static extern void ruby_init();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_eval_string(string Code);
 
         [DllImport(RubyPath)]
         static extern IntPtr rb_eval_string_protect(string Code, ref IntPtr State);
@@ -345,6 +296,9 @@ namespace rubydotnet
 
         [DllImport(RubyPath)]
         static extern void rb_raise(IntPtr Class, string Message);
+
+        [DllImport(RubyPath)]
+        static extern void rb_require(string File);
         #endregion
 
         #region Class & Module
@@ -361,10 +315,13 @@ namespace rubydotnet
         static extern IntPtr rb_define_module_under(IntPtr UnderKlass, string Name);
 
         [DllImport(RubyPath)]
-        static extern void rb_define_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] InternalMethod Function, int Argc);
+        static extern void rb_define_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] RubyMethod Function, int Argc);
 
         [DllImport(RubyPath)]
-        static extern void rb_define_singleton_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] InternalMethod Function, int Argc);
+        static extern void rb_define_singleton_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] RubyMethod Function, int Argc);
+
+        [DllImport(RubyPath)]
+        static extern IntPtr rb_define_const(IntPtr Klass, string Name, IntPtr Object);
         #endregion
 
         #region Method
@@ -375,69 +332,22 @@ namespace rubydotnet
         static extern IntPtr rb_block_call(IntPtr Object, IntPtr Function, int Argc, IntPtr[] Argv, BlockMethod Block, IntPtr data2);
 
         [DllImport(RubyPath)]
+        static extern void rb_need_block();
+
+        [DllImport(RubyPath)]
+        static extern bool rb_block_given_p();
+
+        [DllImport(RubyPath)]
+        static extern IntPtr rb_block_proc();
+
+        [DllImport(RubyPath)]
+        static extern IntPtr rb_yield(IntPtr Value);
+
+        [DllImport(RubyPath)]
         static extern IntPtr rb_ivar_get(IntPtr Object, IntPtr ID);
 
         [DllImport(RubyPath)]
         static extern IntPtr rb_ivar_set(IntPtr Object, IntPtr ID, IntPtr Value);
-        #endregion
-
-        #region String
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_str_new_cstr(string String);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_str_new(string String, long Length);
-
-        [DllImport(RubyPath)]
-        static extern long rb_str_strlen(IntPtr Object);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_string_value_ptr(ref IntPtr Object);
-        #endregion
-
-        #region Numeric
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_int2big(long Value);
-
-        [DllImport(RubyPath)]
-        static extern long rb_num2ll(IntPtr Value);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_float_new(double Value);
-
-        [DllImport(RubyPath)]
-        static extern double rb_num2dbl(IntPtr Value);
-        #endregion
-
-        #region Array
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_ary_new();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_ary_entry(IntPtr Object, int Index);
-        
-        [DllImport(RubyPath)]
-        static extern void rb_ary_store(IntPtr Object, long Index, IntPtr Value);
-        #endregion
-
-        #region Hash
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_new();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_keys(IntPtr Object);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_values(IntPtr Object);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_aref(IntPtr Object, IntPtr Key);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_aset(IntPtr Object, IntPtr Key, IntPtr Value);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_hash_size(IntPtr Object);
         #endregion
 
         #region Range

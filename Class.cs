@@ -1,93 +1,50 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace rubydotnet
 {
     public static partial class Ruby
     {
-        public class Class : Object
+        public static class Class
         {
-            public static Dictionary<Class, Type> CustomClasses = new Dictionary<Class, Type>();
-
-            public string Name;
-
-            public Class(IntPtr Pointer, string Name) : base(Pointer, true)
+            public static IntPtr Define(string Name, IntPtr? Inherited = null)
             {
-                this.Name = Name;
-            }
-
-            public static Class DefineClass<T>(string Name, Object InheritedClass = null, Object UnderKlass = null) where T : Object
-            {
-                if (InheritedClass != null && !(InheritedClass is Class))
+                IntPtr Class = rb_define_class(Name, Inherited ?? Object.Class);
+                DefineMethod(Class, "new", delegate (IntPtr Self, IntPtr Args)
                 {
-                    if (InheritedClass is Module) throw new Exception("Cannot inherit from Module.");
-                    else throw new Exception($"Invalid superclass type {InheritedClass}.");
-                }
-                if (UnderKlass != null && !(UnderKlass is Class) && !(UnderKlass is Module)) throw new Exception("Invalid parent klass");
-                if (InheritedClass == null) InheritedClass = Object.Class;
-                IntPtr classptr = IntPtr.Zero;
-                if (UnderKlass == null) classptr = rb_define_class(Name, InheritedClass.Pointer);
-                else classptr = rb_define_class_under(UnderKlass.Pointer, Name, InheritedClass.Pointer);
-                if (UnderKlass is Class) Name = ((Class) UnderKlass).Name + "::" + Name;
-                else if (UnderKlass is Module) Name = ((Module) UnderKlass).Name + "::" + Name;
-                Class cls = new Class(classptr, Name);
-                CustomClasses.Add(cls, typeof(T));
-                cls.DefineClassMethod("new", delegate (Object Self, Array Args)
-                {
-                    Object obj = ((Class) Self).Allocate();
-                    obj.Funcall("initialize", Args);
-                    return obj;
+                    IntPtr o = Allocate(Class);
+                    Funcall(o, "initialize", Args);
+                    return o;
                 });
-                cls.DefineMethod("initialize", delegate (Object Self, Array Args)
+                return Class;
+            }
+            
+            public static IntPtr Define(string Name, IntPtr Parent, IntPtr? Inherited = null)
+            {
+                IntPtr Class = rb_define_class_under(Parent, Name, Inherited ?? Object.Class);
+                DefineMethod(Class, "new", delegate (IntPtr Self, IntPtr Args)
                 {
-                    return Nil;
+                    IntPtr o = Allocate(Class);
+                    Funcall(o, "initialize", Args);
+                    return o;
                 });
-                return cls;
-            }
-            public static Class DefineClass<T>(string Name, string InheritedClass = null, string UnderKlass = null) where T : Object
-            {
-                Object cInheritedClass = string.IsNullOrEmpty(InheritedClass) ? null : GetKlass(InheritedClass);
-                Object kUnderKlass = string.IsNullOrEmpty(UnderKlass) ? null : GetKlass(UnderKlass);
-                return DefineClass<T>(Name, cInheritedClass, kUnderKlass);
-            }
-            public static Class DefineClass<T>(string Name) where T : Object
-            {
-                return DefineClass<T>(Name, (Class) null, null);
+                return Class;
             }
 
-            List<object> MethodCache = new List<object>();
-
-            public override string ToString()
+            public static IntPtr Allocate(IntPtr Class)
             {
-                return Name;
+                return Funcall(Class, "allocate");
             }
 
-            public Object Allocate()
+            public static void DefineMethod(IntPtr Class, string Name, RubyMethod Method)
             {
-                return Funcall("allocate");
+                Object.MethodCache.Add(Method);
+                rb_define_method(Class, Name, Method, -2);
             }
 
-            public void DefineMethod(string Name, Method Method)
+            public static void DefineClassMethod(IntPtr Class, string Name, RubyMethod Method)
             {
-                InternalMethod imethod = delegate (IntPtr Self, IntPtr Args)
-                {
-                    return Method(new Object(Self, false), new Array(Args)).Pointer;
-                };
-                MethodCache.Add(imethod);
-                MethodCache.Add(Method);
-                rb_define_method(this.Pointer, Name, imethod, -2);
-            }
-
-            public void DefineClassMethod(string Name, Method Method)
-            {
-                InternalMethod imethod = delegate (IntPtr Self, IntPtr Args)
-                {
-                    return Method(new Class(Self, KlassName), new Array(Args)).Pointer;
-                };
-                MethodCache.Add(imethod);
-                MethodCache.Add(Method);
-                rb_define_singleton_method(this.Pointer, Name, imethod, -2);
+                Object.MethodCache.Add(Method);
+                rb_define_singleton_method(Class, Name, Method, -2);
             }
         }
     }
