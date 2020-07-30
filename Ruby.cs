@@ -21,9 +21,21 @@ namespace rubydotnet
 
         static bool Initialized = false;
 
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
+        public static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
+
         public static void Initialize()
         {
             if (Initialized) return;
+            string pwd = System.IO.Directory.GetCurrentDirectory();
+            IntPtr libgmp = LoadLibrary("./lib/libgmp-10.dll");
+            IntPtr libssp = LoadLibrary("./lib/libssp-0.dll");
+            IntPtr libwinpthread = LoadLibrary("./lib/libwinpthread-1.dll");
+            IntPtr ruby = LoadLibrary("./lib/x64-msvcrt-ruby270.dll");
+            if (ruby == IntPtr.Zero) throw new Exception("Could not find Ruby at 'lib/x64-msvcrt-ruby270.dll'.");
+            if (libgmp == IntPtr.Zero) throw new Exception("Could not find libgmp at 'lib/libgmp-10.dll'.");
+            if (libssp == IntPtr.Zero) throw new Exception("Could not find libssp at 'lib/libssp-0.dll'.");
+            if (libwinpthread == IntPtr.Zero) throw new Exception("Could not find libwinpthread at 'lib/libwinpthread-1.dll'.");
             ruby_init();
             Initialized = true;
         }
