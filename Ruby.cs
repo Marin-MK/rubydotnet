@@ -85,7 +85,6 @@ namespace rubydotnet
             Float.rb_num2dbl = ruby.GetFunction<RB_DblPtr>("rb_num2dbl");
             Hash.rb_hash_new = ruby.GetFunction<RB_Ptr>("rb_hash_new");
             Hash.rb_hash_keys = ruby.GetFunction<RB_PtrPtr>("rb_hash_keys");
-            Hash.rb_hash_values = ruby.GetFunction<RB_PtrPtr>("rb_hash_values");
             Hash.rb_hash_aref = ruby.GetFunction<RB_PtrPtrPtr>("rb_hash_aref");
             Hash.rb_hash_aset = ruby.GetFunction<RB_PtrPtrPtrPtr>("rb_hash_aset");
             Hash.rb_hash_size = ruby.GetFunction<RB_PtrPtr>("rb_hash_size");
