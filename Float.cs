@@ -22,11 +22,8 @@ namespace rubydotnet
                 return (int) Math.Round(FromPtr(Value));
             }
 
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_float_new(double Value);
-
-            [DllImport(RubyPath)]
-            static extern double rb_num2dbl(IntPtr Value);
+            internal static RB_PtrDbl rb_float_new;
+            internal static RB_DblPtr rb_num2dbl;
         }
     }
 }

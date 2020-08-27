@@ -11,7 +11,6 @@ namespace rubydotnet
         public delegate IntPtr RubyMethod(IntPtr Self, IntPtr Args);
         public delegate IntPtr BlockMethod(IntPtr BlockArgs, IntPtr Self, IntPtr Args);
 
-        public const string RubyPath = "x64-msvcrt-ruby270";
         public const string Version = "2.7.0";
 
         public static IntPtr True  = (IntPtr) 0x14;
@@ -21,21 +20,79 @@ namespace rubydotnet
 
         static bool Initialized = false;
 
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
-        public static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr LoadLibrary(string Filename);
+
+        [DllImport("libdl.so")]
+        public static extern IntPtr dlopen(string Filename, int Flags);
 
         public static void Initialize()
         {
             if (Initialized) return;
-            string pwd = System.IO.Directory.GetCurrentDirectory();
-            IntPtr libgmp = LoadLibrary("./lib/libgmp-10.dll");
-            IntPtr libssp = LoadLibrary("./lib/libssp-0.dll");
-            IntPtr libwinpthread = LoadLibrary("./lib/libwinpthread-1.dll");
-            IntPtr ruby = LoadLibrary("./lib/x64-msvcrt-ruby270.dll");
-            if (ruby == IntPtr.Zero) throw new Exception("Could not find Ruby at 'lib/x64-msvcrt-ruby270.dll'.");
-            if (libgmp == IntPtr.Zero) throw new Exception("Could not find libgmp at 'lib/libgmp-10.dll'.");
-            if (libssp == IntPtr.Zero) throw new Exception("Could not find libssp at 'lib/libssp-0.dll'.");
-            if (libwinpthread == IntPtr.Zero) throw new Exception("Could not find libwinpthread at 'lib/libwinpthread-1.dll'.");
+            NativeLibrary ruby;
+            if (NativeLibrary.Platform == Platform.Windows)
+            {
+                ruby = new NativeLibrary("./lib/windows/x64-msvcrt-ruby270.dll", "./lib/windows/libgmp-10.dll", "./lib/windows/libssp-0.dll", "./lib/windows/libwinpthread-1.dll");
+            }
+            else if (NativeLibrary.Platform == Platform.Linux)
+            {
+                ruby = new NativeLibrary("lib/linux/libruby.so");
+            }
+            else if (NativeLibrary.Platform == Platform.MacOS)
+            {
+                throw new Exception("MacOS is not yet supported.");
+            }
+            else
+            {
+                throw new Exception("Platform could not be detected.");
+            }
+            ruby_init = ruby.GetFunction<Action>("ruby_init");
+            rb_eval_string_protect = ruby.GetFunction<RB_PtrStrRefPtr>("rb_eval_string_protect");
+            rb_protect = ruby.GetFunction<RB_PMDPtrRefPtr>("rb_protect");
+            rb_intern = ruby.GetFunction<RB_PtrStr>("rb_intern");
+            rb_str_intern = ruby.GetFunction<RB_PtrPtr>("rb_str_intern");
+            rb_gv_set = ruby.GetFunction<RB_StrPtr>("rb_gv_set");
+            rb_gv_get = ruby.GetFunction<RB_PtrStr>("rb_gv_get");
+            rb_f_global_variables = ruby.GetFunction<RB_Ptr>("rb_f_global_variables");
+            rb_raise = ruby.GetFunction<RB_VoidPtrStr>("rb_raise");
+            rb_require = ruby.GetFunction<RB_VoidStr>("rb_require");
+            rb_define_class = ruby.GetFunction<RB_PtrStrPtr>("rb_define_class");
+            rb_define_class_under = ruby.GetFunction<RB_PtrPtrStrPtr>("rb_define_class_under");
+            rb_define_module = ruby.GetFunction<RB_PtrStr>("rb_define_module");
+            rb_define_module_under = ruby.GetFunction<RB_PtrPtrStr>("rb_define_module_under");
+            rb_define_method = ruby.GetFunction<RB_VoidPtrStrRMDInt>("rb_define_method");
+            rb_define_singleton_method = ruby.GetFunction<RB_VoidPtrStrRMDInt>("rb_define_singleton_method");
+            rb_define_const = ruby.GetFunction<RB_PtrPtrStrPtr>("rb_define_const");
+            rb_funcallv = ruby.GetFunction<RB_PtrPtrPtrIntParamsPtr>("rb_funcallv");
+            rb_block_call = ruby.GetFunction<RB_PtrPtrPtrIntPtrAryBMDPtr>("rb_block_call");
+            rb_need_block = ruby.GetFunction<Action>("rb_need_block");
+            rb_block_given_p = ruby.GetFunction<RB_Bool>("rb_block_given_p");
+            rb_block_proc = ruby.GetFunction<RB_Ptr>("rb_block_proc");
+            rb_yield = ruby.GetFunction<RB_PtrPtr>("rb_yield");
+            rb_ivar_get = ruby.GetFunction<RB_PtrPtrPtr>("rb_ivar_get");
+            rb_ivar_set = ruby.GetFunction<RB_PtrPtrPtrPtr>("rb_ivar_set");
+            rb_range_new = ruby.GetFunction<RB_PtrPtrPtrInt>("rb_range_new");
+            rb_range_values = ruby.GetFunction<RB_IntPtrRefPtrRefPtrRefInt>("rb_range_values");
+            rb_reg_new_str = ruby.GetFunction<RB_PtrPtrInt>("rb_reg_new_str");
+            rb_file_open = ruby.GetFunction<RB_PtrStrStr>("rb_file_open");
+            rb_marshal_load = ruby.GetFunction<RB_PtrPtr>("rb_marshal_load");
+            rb_marshal_dump = ruby.GetFunction<RB_PtrPtrPtr>("rb_marshal_dump");
+            rb_time_num_new = ruby.GetFunction<RB_PtrPtrPtr>("rb_time_num_new");
+            Array.rb_ary_new = ruby.GetFunction<RB_Ptr>("rb_ary_new");
+            Array.rb_ary_entry = ruby.GetFunction<RB_PtrPtrInt>("rb_ary_entry");
+            Array.rb_ary_store = ruby.GetFunction<RB_VoidPtrLngPtr>("rb_ary_store");
+            Float.rb_float_new = ruby.GetFunction<RB_PtrDbl>("rb_float_new");
+            Float.rb_num2dbl = ruby.GetFunction<RB_DblPtr>("rb_num2dbl");
+            Hash.rb_hash_new = ruby.GetFunction<RB_Ptr>("rb_hash_new");
+            Hash.rb_hash_keys = ruby.GetFunction<RB_PtrPtr>("rb_hash_keys");
+            Hash.rb_hash_values = ruby.GetFunction<RB_PtrPtr>("rb_hash_values");
+            Hash.rb_hash_aref = ruby.GetFunction<RB_PtrPtrPtr>("rb_hash_aref");
+            Hash.rb_hash_aset = ruby.GetFunction<RB_PtrPtrPtrPtr>("rb_hash_aset");
+            Hash.rb_hash_size = ruby.GetFunction<RB_PtrPtr>("rb_hash_size");
+            Integer.rb_int2big = ruby.GetFunction<RB_PtrLng>("rb_int2big");
+            Integer.rb_num2ll = ruby.GetFunction<RB_LngPtr>("rb_num2ll");
+            String.rb_str_new = ruby.GetFunction<RB_PtrStrInt>("rb_str_new");
+            String.rb_string_value_ptr = ruby.GetFunction<RB_PtrRefPtr>("rb_string_value_ptr");
             ruby_init();
             Initialized = true;
         }
@@ -280,118 +337,71 @@ namespace rubydotnet
             SystemExit
         }
 
-        #region Import
-        #region Utility
-        [DllImport(RubyPath)]
-        static extern void ruby_init();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_eval_string_protect(string Code, ref IntPtr State);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_protect(ProtectedMethod Method, IntPtr Argument, ref IntPtr State);
-
-        [DllImport(RubyPath)]
-        public static extern IntPtr rb_intern(string Str);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_str_intern(IntPtr Str);
-
-        [DllImport(RubyPath)]
-        static extern void rb_gv_set(string Var, IntPtr Value);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_gv_get(string Var);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_f_global_variables();
-
-        [DllImport(RubyPath)]
-        static extern void rb_raise(IntPtr Class, string Message);
-
-        [DllImport(RubyPath)]
-        static extern void rb_require(string File);
+        #region Function Delegates
+        internal delegate IntPtr RB_PtrStrRefPtr(string Str, ref IntPtr IntPtr);
+        internal delegate IntPtr RB_PMDPtrRefPtr(ProtectedMethod Method, IntPtr IntPtr1, ref IntPtr IntPtr2);
+        internal delegate IntPtr RB_PtrStr(string Str);
+        internal delegate IntPtr RB_PtrPtr(IntPtr IntPtr);
+        internal delegate void RB_StrPtr(string Str, IntPtr Ptr);
+        internal delegate IntPtr RB_Ptr();
+        internal delegate void RB_VoidPtrStr(IntPtr IntPtr, string String);
+        internal delegate void RB_VoidStr(string Str);
+        internal delegate IntPtr RB_PtrStrPtr(string Str, IntPtr IntPtr);
+        internal delegate IntPtr RB_PtrPtrStrPtr(IntPtr IntPtr1, string Str, IntPtr IntPtr2);
+        internal delegate IntPtr RB_PtrPtrStr(IntPtr IntPtr, string Str);
+        internal delegate void RB_VoidPtrStrRMDInt(IntPtr IntPtr, string Str, RubyMethod Method, int Int);
+        internal delegate IntPtr RB_PtrPtrPtrIntParamsPtr(IntPtr IntPtr1, IntPtr IntPtr2, int Int, params IntPtr[] ParamsPtr);
+        internal delegate IntPtr RB_PtrPtrPtrIntPtrAryBMDPtr(IntPtr IntPtr1, IntPtr IntPtr2, int Int, IntPtr[] IntPtrAry, BlockMethod Method, IntPtr IntPtr3);
+        internal delegate bool RB_Bool();
+        internal delegate IntPtr RB_PtrPtrPtr(IntPtr IntPtr1, IntPtr IntPtr2);
+        internal delegate IntPtr RB_PtrPtrPtrPtr(IntPtr IntPtr1, IntPtr IntPtr2, IntPtr IntPtr3);
+        internal delegate IntPtr RB_PtrPtrPtrInt(IntPtr IntPtr1, IntPtr IntPtr2, int Int);
+        internal delegate int RB_IntPtrRefPtrRefPtrRefInt(IntPtr IntPtr1, ref IntPtr IntPtr2, ref IntPtr IntPtr3, ref int Int);
+        internal delegate IntPtr RB_PtrPtrInt(IntPtr IntPtr, int Int);
+        internal delegate IntPtr RB_PtrStrStr(string Str1, string Str2);
+        internal delegate void RB_VoidPtrLngPtr(IntPtr IntPtr1, long Lng, IntPtr IntPtr2);
+        internal delegate IntPtr RB_PtrDbl(double Dbl);
+        internal delegate double RB_DblPtr(IntPtr IntPtr);
+        internal delegate IntPtr RB_PtrLng(long Lng);
+        internal delegate long RB_LngPtr(IntPtr IntPtr);
+        internal delegate IntPtr RB_PtrStrInt(string Str, int Int);
+        internal delegate IntPtr RB_PtrRefPtr(ref IntPtr IntPtr);
         #endregion
 
-        #region Class & Module
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_define_class(string Name, IntPtr InheritedClass);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_define_class_under(IntPtr UnderKlass, string Name, IntPtr InheritedClass);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_define_module(string Name);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_define_module_under(IntPtr UnderKlass, string Name);
-
-        [DllImport(RubyPath)]
-        static extern void rb_define_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] RubyMethod Function, int Argc);
-
-        [DllImport(RubyPath)]
-        static extern void rb_define_singleton_method(IntPtr Object, string Name, [MarshalAs(UnmanagedType.FunctionPtr)] RubyMethod Function, int Argc);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_define_const(IntPtr Klass, string Name, IntPtr Object);
-        #endregion
-
-        #region Method
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_funcallv(IntPtr Object, IntPtr Function, int Argc, params IntPtr[] Argv);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_block_call(IntPtr Object, IntPtr Function, int Argc, IntPtr[] Argv, BlockMethod Block, IntPtr data2);
-
-        [DllImport(RubyPath)]
-        static extern void rb_need_block();
-
-        [DllImport(RubyPath)]
-        static extern bool rb_block_given_p();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_block_proc();
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_yield(IntPtr Value);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_ivar_get(IntPtr Object, IntPtr ID);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_ivar_set(IntPtr Object, IntPtr ID, IntPtr Value);
-        #endregion
-
-        #region Range
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_range_new(IntPtr Min, IntPtr Max, int Type);
-
-        [DllImport(RubyPath)]
-        static extern int rb_range_values(IntPtr Object, ref IntPtr Min, ref IntPtr Max, ref int Type);
-        #endregion
-
-        #region Regexp
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_reg_new_str(IntPtr Object, int Options);
-        #endregion
-
-        #region File
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_file_open(string Filename, string Mode);
-        #endregion
-
-        #region Marshal
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_marshal_load(IntPtr Data);
-
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_marshal_dump(IntPtr Data, IntPtr Val);
-        #endregion
-
-        #region Time
-        [DllImport(RubyPath)]
-        static extern IntPtr rb_time_num_new(IntPtr Value, IntPtr Offset);
-        #endregion
+        #region Ruby Functions
+        static Action ruby_init;
+        static RB_PtrStrRefPtr rb_eval_string_protect;
+        static RB_PMDPtrRefPtr rb_protect;
+        static RB_PtrStr rb_intern;
+        static RB_PtrPtr rb_str_intern;
+        static RB_StrPtr rb_gv_set;
+        static RB_PtrStr rb_gv_get;
+        static RB_Ptr rb_f_global_variables;
+        static RB_VoidPtrStr rb_raise;
+        static RB_VoidStr rb_require;
+        static RB_PtrStrPtr rb_define_class;
+        static RB_PtrPtrStrPtr rb_define_class_under;
+        static RB_PtrStr rb_define_module;
+        static RB_PtrPtrStr rb_define_module_under;
+        static RB_VoidPtrStrRMDInt rb_define_method;
+        static RB_VoidPtrStrRMDInt rb_define_singleton_method;
+        static RB_PtrPtrStrPtr rb_define_const;
+        static RB_PtrPtrPtrIntParamsPtr rb_funcallv;
+        static RB_PtrPtrPtrIntPtrAryBMDPtr rb_block_call;
+        static Action rb_need_block;
+        static RB_Bool rb_block_given_p;
+        static RB_Ptr rb_block_proc;
+        static RB_PtrPtr rb_yield;
+        static RB_PtrPtrPtr rb_ivar_get;
+        static RB_PtrPtrPtrPtr rb_ivar_set;
+        static RB_PtrPtrPtrInt rb_range_new;
+        static RB_IntPtrRefPtrRefPtrRefInt rb_range_values;
+        static RB_PtrPtrInt rb_reg_new_str;
+        static RB_PtrStrStr rb_file_open;
+        static RB_PtrPtr rb_marshal_load;
+        static RB_PtrPtrPtr rb_marshal_dump;
+        static RB_PtrPtrPtr rb_time_num_new;
         #endregion
     }
 }
+

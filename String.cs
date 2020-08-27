@@ -18,11 +18,8 @@ namespace rubydotnet
                 return Marshal.PtrToStringUTF8(rb_string_value_ptr(ref Value), (int) len);
             }
 
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_str_new(string String, long Length);
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_string_value_ptr(ref IntPtr Object);
+            internal static RB_PtrStrInt rb_str_new;
+            internal static RB_PtrRefPtr rb_string_value_ptr;
         }
     }
 }

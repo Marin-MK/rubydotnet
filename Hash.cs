@@ -37,23 +37,12 @@ namespace rubydotnet
                 return rb_hash_new();
             }
 
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_new();
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_keys(IntPtr Object);
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_values(IntPtr Object);
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_aref(IntPtr Object, IntPtr Key);
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_aset(IntPtr Object, IntPtr Key, IntPtr Value);
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_hash_size(IntPtr Object);
+            internal static RB_Ptr rb_hash_new;
+            internal static RB_PtrPtr rb_hash_keys;
+            internal static RB_PtrPtr rb_hash_values;
+            internal static RB_PtrPtrPtr rb_hash_aref;
+            internal static RB_PtrPtrPtrPtr rb_hash_aset;
+            internal static RB_PtrPtr rb_hash_size;
         }
     }
 }

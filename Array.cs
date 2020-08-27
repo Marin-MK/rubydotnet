@@ -62,14 +62,9 @@ namespace rubydotnet
                 Raise(ErrorType.ArgumentError, $"wrong number of arguments (given {Length(Object)}, expected {expectedstr})");
             }
 
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_ary_new();
-
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_ary_entry(IntPtr Object, int Index);
-
-            [DllImport(RubyPath)]
-            static extern void rb_ary_store(IntPtr Object, long Index, IntPtr Value);
+            internal static RB_Ptr rb_ary_new;
+            internal static RB_PtrPtrInt rb_ary_entry;
+            internal static RB_VoidPtrLngPtr rb_ary_store;
         }
     }
 }

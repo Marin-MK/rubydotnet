@@ -48,11 +48,8 @@ namespace rubydotnet
             static int RUBY_FIXNUM_MAX = LONG_MAX >> 1;
             static int RUBY_FIXNUM_MIN = LONG_MIN >> 1;
 
-            [DllImport(RubyPath)]
-            static extern IntPtr rb_int2big(long Value);
-
-            [DllImport(RubyPath)]
-            static extern long rb_num2ll(IntPtr Value);
+            internal static RB_PtrLng rb_int2big;
+            internal static RB_LngPtr rb_num2ll;
         }
     }
 }
