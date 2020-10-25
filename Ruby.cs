@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
@@ -176,17 +177,23 @@ namespace rubydotnet
             return ptr;
         }
 
-        public static void Load(string File)
+        public static bool Load(string File)
         {
-            Require(File);
+            return Require(File);
         }
-        public static void Require(string File)
+        public static bool Require(string File)
         {
-            SafeRuby(delegate (IntPtr Arg)
+            return Require(delegate (IntPtr Arg)
             {
                 rb_require(File);
                 return IntPtr.Zero;
             });
+        }
+        public static bool Require(ProtectedMethod Method)
+        {
+            IntPtr State = IntPtr.Zero;
+            IntPtr Result = rb_protect(Method, Nil, ref State);
+            return Result == IntPtr.Zero;
         }
 
         static IntPtr SafeRuby(ProtectedMethod Method)
@@ -197,17 +204,27 @@ namespace rubydotnet
             return Result;
         }
 
-        static void RaiseException(bool PrintError = true, bool ThrowError = true)
+        public static void RaiseException(bool PrintError = true, bool ThrowError = true)
+        {
+            string msg = FormatException();
+            if (PrintError) Console.WriteLine(msg);
+            if (ThrowError) throw new Exception(msg);
+        }
+
+        public static string FormatException()
         {
             IntPtr Err = rb_gv_get("$!");
             string type = String.FromPtr(Funcall(Funcall(Err, "class"), "to_s"));
-            string msg = type + ": " + String.FromPtr(Funcall(Err, "to_s"));
+            string msg = type + ": " + String.FromPtr(Funcall(Err, "message"));
             IntPtr Backtrace = Funcall(Err, "backtrace");
             long length = Array.Length(Backtrace);
             if (length > 0) msg += "\n\n";
+            string currentdir = Directory.GetCurrentDirectory();
+            currentdir = currentdir.Replace('\\', '/');
             for (int i = 0; i < length; i++)
             {
                 string line = String.FromPtr(Array.Get(Backtrace, i));
+                line = line.Replace(currentdir, "");
                 string[] colons = line.Split(':');
                 int? linenum = null;
                 if (System.Text.RegularExpressions.Regex.IsMatch(colons[1], @"/\d+/"))
@@ -215,7 +232,7 @@ namespace rubydotnet
                     linenum = Convert.ToInt32(colons[1]);
                 }
                 msg += "from ";
-                for (int j = linenum == null ? 1 : 2; j < colons.Length; j++)
+                for (int j = linenum == null ? 0 : 1; j < colons.Length; j++)
                 {
                     if (colons[j].Length > 3 && colons[j][0] == 'i' && colons[j][1] == 'n' && colons[j][2] == ' ')
                         colons[j] = colons[j].Replace("in ", "");
@@ -225,9 +242,7 @@ namespace rubydotnet
                 if (linenum != null) msg += " line " + linenum.ToString();
                 if (i != length - 1) msg += "\n";
             }
-            msg = msg[0].ToString().ToUpper() + msg.Substring(1);
-            if (PrintError) Console.WriteLine(msg);
-            if (ThrowError) throw new Exception(msg);
+            return msg[0].ToString().ToUpper() + msg.Substring(1);
         }
 
         public static IntPtr Funcall(IntPtr Object, string Method, params IntPtr[] Args)
