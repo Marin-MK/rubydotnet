@@ -240,6 +240,7 @@ namespace rubydotnet
                 Backtrace = Funcall(Err, "backtrace");
             }
             long length = Array.Length(Backtrace);
+            if (length > 13) length = 13;
             if (length > 0) msg += "\n\n";
             for (int i = 0; i < length; i++)
             {
