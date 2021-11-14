@@ -29,6 +29,13 @@ namespace rubydotnet
                 return Value;
             }
 
+            public static IntPtr Create(int Size, IntPtr Element)
+            {
+                IntPtr Value = rb_ary_new();
+                for (int i = 0; i < Size; i++) rb_ary_store(Value, i, Element);
+                return Value;
+            }
+
             public static bool Is(IntPtr Object, int Index, params string[] Class)
             {
                 return Ruby.Is(Get(Object, Index), Class);
