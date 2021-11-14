@@ -7,9 +7,24 @@ namespace rubydotnet
     {
         public static class String
         {
-            public static IntPtr ToPtr(string Value)
+            public unsafe static IntPtr ToPtr(string Value)
             {
-                return rb_str_new(Value, Value.Length);
+                if (Value.Length == 0)
+                {
+                    // Likely faster, but cannot convert UTF-8 C# strings back to UTF-8 Ruby strings.
+                    return rb_str_new(Value, Value.Length);
+                }
+                else
+                {
+                    // Likely slower, but will retain C# String UTF-8 encoding in the Ruby string.
+                    IntPtr ret = IntPtr.Zero;
+                    fixed (byte* p = System.Text.Encoding.UTF8.GetBytes(Value))
+                    {
+                        ret = rb_utf8_str_new_cstr((IntPtr) p);
+                    }
+                    if (ret == IntPtr.Zero) throw new Exception("Could not convert string to pointer.");
+                    return ret;
+                }
             }
 
             public static string FromPtr(IntPtr Value)
@@ -19,6 +34,7 @@ namespace rubydotnet
             }
 
             internal static RB_PtrStrInt rb_str_new;
+            internal static RB_PtrPtr rb_utf8_str_new_cstr;
             internal static RB_PtrRefPtr rb_string_value_ptr;
         }
     }

@@ -93,6 +93,7 @@ namespace rubydotnet
             Integer.rb_int2big = ruby.GetFunction<RB_PtrLng>("rb_int2big");
             Integer.rb_num2ll = ruby.GetFunction<RB_LngPtr>("rb_num2ll");
             String.rb_str_new = ruby.GetFunction<RB_PtrStrInt>("rb_str_new");
+            String.rb_utf8_str_new_cstr = ruby.GetFunction<RB_PtrPtr>("rb_utf8_str_new_cstr");
             String.rb_string_value_ptr = ruby.GetFunction<RB_PtrRefPtr>("rb_string_value_ptr");
             ruby_init();
             Initialized = true;
