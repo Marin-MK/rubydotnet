@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <Configurations>Debug</Configurations>
@@ -10,6 +10,13 @@
     <StartupObject />
     <AssemblyName>rubydotnet</AssemblyName>
     <RootNamespace>rubydotnet</RootNamespace>
+    <Authors>Marijn Herrebout</Authors>
+    <Copyright>Marijn Herrebout</Copyright>
+    <RepositoryUrl>https://github.com/Marin-MK/rubydotnet</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Optimize>True</Optimize>
   </PropertyGroup>
 
 </Project>
