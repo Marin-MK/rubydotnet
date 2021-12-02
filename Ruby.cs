@@ -198,7 +198,7 @@ namespace rubydotnet
             return Result == IntPtr.Zero;
         }
 
-        static IntPtr SafeRuby(ProtectedMethod Method)
+        public static IntPtr SafeRuby(ProtectedMethod Method)
         {
             IntPtr State = IntPtr.Zero;
             IntPtr Result = rb_protect(Method, Nil, ref State);
