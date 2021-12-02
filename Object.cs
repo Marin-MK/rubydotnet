@@ -1,22 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace rubydotnet
-{
-    public static partial class Ruby
-    {
-        public static class Object
-        {
-            public static List<RubyMethod> MethodCache = new List<RubyMethod>();
+namespace rubydotnet;
 
-            private static IntPtr _class = IntPtr.Zero;
-            public static IntPtr Class
+public static partial class Ruby
+{
+    public static class Object
+    {
+        public static List<RubyMethod> MethodCache = new List<RubyMethod>();
+
+        private static IntPtr _class = IntPtr.Zero;
+        public static IntPtr Class
+        {
+            get
             {
-                get
-                {
-                    if (_class == IntPtr.Zero) _class = Eval("Object");
-                    return _class;
-                }
+                if (_class == IntPtr.Zero) _class = Eval("Object");
+                return _class;
             }
         }
     }
