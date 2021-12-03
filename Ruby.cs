@@ -1,8 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Net.NetworkInformation;
-using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 
 namespace rubydotnet;
