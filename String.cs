@@ -18,9 +18,9 @@ public static partial class Ruby
             {
                 // Likely slower, but will retain C# String UTF-8 encoding in the Ruby string.
                 IntPtr ret = IntPtr.Zero;
-                fixed (byte* p = System.Text.Encoding.UTF8.GetBytes(Value))
+                fixed (byte* p = System.Text.Encoding.UTF8.GetBytes(Value + '\0'))
                 {
-                    ret = rb_utf8_str_new_cstr((IntPtr)p);
+                    ret = rb_utf8_str_new_cstr((IntPtr) p);
                 }
                 if (ret == IntPtr.Zero) throw new Exception("Could not convert string to pointer.");
                 return ret;
