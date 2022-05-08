@@ -46,6 +46,7 @@ public static partial class Ruby
         {
             throw new Exception("Platform could not be detected.");
         }
+        ruby_sysinit = ruby.GetFunction<RB_VoidPtrPtr>("ruby_sysinit");
         ruby_init = ruby.GetFunction<Action>("ruby_init");
         rb_eval_string_protect = ruby.GetFunction<RB_PtrStrRefPtr>("rb_eval_string_protect");
         rb_protect = ruby.GetFunction<RB_PMDPtrRefPtr>("rb_protect");
@@ -93,8 +94,15 @@ public static partial class Ruby
         String.rb_str_new = ruby.GetFunction<RB_PtrStrInt>("rb_str_new");
         String.rb_utf8_str_new_cstr = ruby.GetFunction<RB_PtrPtr>("rb_utf8_str_new_cstr");
         String.rb_string_value_ptr = ruby.GetFunction<RB_PtrRefPtr>("rb_string_value_ptr");
+        Console.WriteLine("Initializing ruby...");
+        IntPtr argc = Marshal.AllocHGlobal(sizeof(int));
+        Marshal.WriteInt32(argc, 0);
+        IntPtr argv = Marshal.AllocHGlobal(sizeof(int));
+        Marshal.WriteInt32(argv, 0);
+        ruby_sysinit(argc, argv);
         ruby_init();
         Initialized = true;
+        Console.WriteLine("Initialized ruby.");
     }
 
     public static void Pin(IntPtr Object)
@@ -381,6 +389,7 @@ public static partial class Ruby
     }
 
     #region Function Delegates
+    internal delegate void RB_VoidPtrPtr(IntPtr Ptr1, IntPtr Ptr2);
     internal delegate IntPtr RB_PtrStrRefPtr(string Str, ref IntPtr IntPtr);
     internal delegate IntPtr RB_PMDPtrRefPtr(ProtectedMethod Method, IntPtr IntPtr1, ref IntPtr IntPtr2);
     internal delegate IntPtr RB_PtrStr(string Str);
@@ -412,6 +421,7 @@ public static partial class Ruby
     #endregion
 
     #region Ruby Functions
+    static RB_VoidPtrPtr ruby_sysinit;
     static Action ruby_init;
     static RB_PtrStrRefPtr rb_eval_string_protect;
     static RB_PMDPtrRefPtr rb_protect;
