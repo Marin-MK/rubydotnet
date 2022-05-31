@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
+using NativeLibraryLoader;
 
 namespace rubydotnet;
 
@@ -20,34 +20,34 @@ public static partial class Ruby
 
     static bool Initialized = false;
 
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr LoadLibrary(string Filename);
-
-    [DllImport("libdl.so")]
-    public static extern IntPtr dlopen(string Filename, int Flags);
-
-    public static void Initialize()
+    public static void Initialize(PathInfo PathInfo)
     {
         if (Initialized) return;
         NativeLibrary ruby;
+        Console.WriteLine("Loading Ruby...");
+        PathPlatformInfo path = PathInfo.GetPlatform(Platform.Windows);
         if (NativeLibrary.Platform == Platform.Windows)
         {
-            ruby = new NativeLibrary("./lib/windows/x64-msvcrt-ruby270.dll", "./lib/windows/libgmp-10.dll", "./lib/windows/libssp-0.dll", "./lib/windows/libwinpthread-1.dll");
+            string rubypath = path.Get("ruby");
+            string libgmp = path.Get("libgmp");
+            string libssp = path.Get("libssp");
+            string libwinpthread = path.Get("libwinpthread");
+            ruby = NativeLibrary.Load(rubypath, libgmp, libssp, libwinpthread);
         }
         else if (NativeLibrary.Platform == Platform.Linux)
         {
-            ruby = new NativeLibrary("lib/linux/libruby.so");
-        }
-        else if (NativeLibrary.Platform == Platform.MacOS)
-        {
-            throw new Exception("MacOS is not yet supported.");
+            string rubypath = path.Get("ruby");
+            ruby = NativeLibrary.Load(rubypath);
         }
         else
         {
-            throw new Exception("Platform could not be detected.");
+            throw new NativeLibrary.UnsupportedPlatformException();
         }
+        Console.Write("Loaded Ruby ");
+        
         ruby_sysinit = ruby.GetFunction<RB_VoidPtrPtr>("ruby_sysinit");
         ruby_init = ruby.GetFunction<Action>("ruby_init");
+        rb_path2class = ruby.GetFunction<RB_PtrStr>("rb_path2class");
         rb_eval_string_protect = ruby.GetFunction<RB_PtrStrRefPtr>("rb_eval_string_protect");
         rb_protect = ruby.GetFunction<RB_PMDPtrRefPtr>("rb_protect");
         rb_intern = ruby.GetFunction<RB_PtrStr>("rb_intern");
@@ -64,6 +64,8 @@ public static partial class Ruby
         rb_define_method = ruby.GetFunction<RB_VoidPtrStrRMDInt>("rb_define_method");
         rb_define_singleton_method = ruby.GetFunction<RB_VoidPtrStrRMDInt>("rb_define_singleton_method");
         rb_define_const = ruby.GetFunction<RB_PtrPtrStrPtr>("rb_define_const");
+        rb_const_get = ruby.GetFunction<RB_PtrPtrPtr>("rb_const_get");
+        rb_const_set = ruby.GetFunction<RB_VoidPtrPtrPtr>("rb_const_set");
         rb_funcallv = ruby.GetFunction<RB_PtrPtrPtrIntParamsPtr>("rb_funcallv");
         rb_block_call = ruby.GetFunction<RB_PtrPtrPtrIntPtrAryBMDPtr>("rb_block_call");
         rb_need_block = ruby.GetFunction<Action>("rb_need_block");
@@ -94,15 +96,15 @@ public static partial class Ruby
         String.rb_str_new = ruby.GetFunction<RB_PtrStrInt>("rb_str_new");
         String.rb_utf8_str_new_cstr = ruby.GetFunction<RB_PtrPtr>("rb_utf8_str_new_cstr");
         String.rb_string_value_ptr = ruby.GetFunction<RB_PtrRefPtr>("rb_string_value_ptr");
-        Console.WriteLine("Initializing ruby...");
-        IntPtr argc = Marshal.AllocHGlobal(sizeof(int));
-        Marshal.WriteInt32(argc, 0);
-        IntPtr argv = Marshal.AllocHGlobal(sizeof(int));
-        Marshal.WriteInt32(argv, 0);
+        IntPtr argc = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
+        System.Runtime.InteropServices.Marshal.WriteInt32(argc, 0);
+        IntPtr argv = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
+        System.Runtime.InteropServices.Marshal.WriteInt32(argv, 0);
         ruby_sysinit(argc, argv);
         ruby_init();
         Initialized = true;
-        Console.WriteLine("Initialized ruby.");
+        string version = String.FromPtr(rb_const_get(Object.Class, rb_intern("RUBY_VERSION")));
+        Console.WriteLine($"({version})");
     }
 
     public static void Pin(IntPtr Object)
@@ -171,7 +173,7 @@ public static partial class Ruby
         Unpin(consts);
     }
 
-    public static void Raise(ErrorType ErrorType, string Message = null)
+    private static void Raise(ErrorType ErrorType, string Message = null)
     {
         rb_raise(GetConst(Object.Class, ErrorType.ToString()), Message ?? "");
     }
@@ -185,22 +187,14 @@ public static partial class Ruby
         return ptr;
     }
 
-    public static bool Load(string File)
-    {
-        return Require(File);
-    }
     public static bool Require(string File)
     {
-        return Require(delegate (IntPtr Arg)
+        IntPtr State = IntPtr.Zero;
+        IntPtr Result = rb_protect(_ =>
         {
             rb_require(File);
             return IntPtr.Zero;
-        });
-    }
-    public static bool Require(ProtectedMethod Method)
-    {
-        IntPtr State = IntPtr.Zero;
-        IntPtr Result = rb_protect(Method, Nil, ref State);
+        }, Nil, ref State);
         return Result == IntPtr.Zero;
     }
 
@@ -212,14 +206,14 @@ public static partial class Ruby
         return Result;
     }
 
-    public static void RaiseException(bool PrintError = true, bool ThrowError = true)
+    private static void RaiseException(bool PrintError = true, bool ThrowError = true)
     {
         string msg = FormatException();
         if (PrintError) Console.WriteLine(msg);
         if (ThrowError) throw new Exception(msg);
     }
 
-    public static string FormatException()
+    private static string FormatException()
     {
         IntPtr Err = rb_gv_get("$!");
         string type = String.FromPtr(Funcall(Funcall(Err, "class"), "to_s"));
@@ -352,12 +346,12 @@ public static partial class Ruby
     #region Constants
     public static IntPtr GetConst(IntPtr Object, string Name)
     {
-        return Funcall(Object, "const_get", String.ToPtr(Name));
+        return rb_const_get(Object, rb_intern(Name));
     }
 
     public static void SetConst(IntPtr Object, string Name, IntPtr Value)
     {
-        Funcall(Object, "const_set", String.ToPtr(Name), Value);
+        rb_const_set(Object, rb_intern(Name), Value);
     }
     #endregion
 
@@ -380,14 +374,6 @@ public static partial class Ruby
     }
     #endregion
 
-    public enum ErrorType
-    {
-        RuntimeError,
-        ArgumentError,
-        TypeError,
-        SystemExit
-    }
-
     #region Function Delegates
     internal delegate void RB_VoidPtrPtr(IntPtr Ptr1, IntPtr Ptr2);
     internal delegate IntPtr RB_PtrStrRefPtr(string Str, ref IntPtr IntPtr);
@@ -405,6 +391,7 @@ public static partial class Ruby
     internal delegate IntPtr RB_PtrPtrPtrIntParamsPtr(IntPtr IntPtr1, IntPtr IntPtr2, int Int, params IntPtr[] ParamsPtr);
     internal delegate IntPtr RB_PtrPtrPtrIntPtrAryBMDPtr(IntPtr IntPtr1, IntPtr IntPtr2, int Int, IntPtr[] IntPtrAry, BlockMethod Method, IntPtr IntPtr3);
     internal delegate bool RB_Bool();
+    internal delegate void RB_VoidPtrPtrPtr(IntPtr IntPtr1, IntPtr IntPtr2, IntPtr IntPtr3);
     internal delegate IntPtr RB_PtrPtrPtr(IntPtr IntPtr1, IntPtr IntPtr2);
     internal delegate IntPtr RB_PtrPtrPtrPtr(IntPtr IntPtr1, IntPtr IntPtr2, IntPtr IntPtr3);
     internal delegate IntPtr RB_PtrPtrPtrInt(IntPtr IntPtr1, IntPtr IntPtr2, int Int);
@@ -421,39 +408,50 @@ public static partial class Ruby
     #endregion
 
     #region Ruby Functions
-    static RB_VoidPtrPtr ruby_sysinit;
-    static Action ruby_init;
-    static RB_PtrStrRefPtr rb_eval_string_protect;
-    static RB_PMDPtrRefPtr rb_protect;
-    static RB_PtrStr rb_intern;
-    static RB_PtrPtr rb_str_intern;
-    static RB_StrPtr rb_gv_set;
-    static RB_PtrStr rb_gv_get;
-    static RB_Ptr rb_f_global_variables;
-    static RB_VoidPtrStr rb_raise;
-    static RB_VoidStr rb_require;
-    static RB_PtrStrPtr rb_define_class;
-    static RB_PtrPtrStrPtr rb_define_class_under;
-    static RB_PtrStr rb_define_module;
-    static RB_PtrPtrStr rb_define_module_under;
-    static RB_VoidPtrStrRMDInt rb_define_method;
-    static RB_VoidPtrStrRMDInt rb_define_singleton_method;
-    static RB_PtrPtrStrPtr rb_define_const;
-    static RB_PtrPtrPtrIntParamsPtr rb_funcallv;
-    static RB_PtrPtrPtrIntPtrAryBMDPtr rb_block_call;
-    static Action rb_need_block;
-    static RB_Bool rb_block_given_p;
-    static RB_Ptr rb_block_proc;
-    static RB_PtrPtr rb_yield;
-    static RB_PtrPtrPtr rb_ivar_get;
-    static RB_PtrPtrPtrPtr rb_ivar_set;
-    static RB_PtrPtrPtrInt rb_range_new;
-    static RB_IntPtrRefPtrRefPtrRefInt rb_range_values;
-    static RB_PtrPtrInt rb_reg_new_str;
-    static RB_PtrStrStr rb_file_open;
-    static RB_PtrPtr rb_marshal_load;
-    static RB_PtrPtrPtr rb_marshal_dump;
-    static RB_PtrPtrPtr rb_time_num_new;
+    internal static RB_VoidPtrPtr ruby_sysinit;
+    internal static Action ruby_init;
+    internal static RB_PtrStr rb_path2class;
+    internal static RB_PtrStrRefPtr rb_eval_string_protect;
+    internal static RB_PMDPtrRefPtr rb_protect;
+    internal static RB_PtrStr rb_intern;
+    internal static RB_PtrPtr rb_str_intern;
+    internal static RB_StrPtr rb_gv_set;
+    internal static RB_PtrStr rb_gv_get;
+    internal static RB_Ptr rb_f_global_variables;
+    internal static RB_VoidPtrStr rb_raise;
+    internal static RB_VoidStr rb_require;
+    internal static RB_PtrStrPtr rb_define_class;
+    internal static RB_PtrPtrStrPtr rb_define_class_under;
+    internal static RB_PtrStr rb_define_module;
+    internal static RB_PtrPtrStr rb_define_module_under;
+    internal static RB_VoidPtrStrRMDInt rb_define_method;
+    internal static RB_VoidPtrStrRMDInt rb_define_singleton_method;
+    internal static RB_PtrPtrStrPtr rb_define_const;
+    internal static RB_PtrPtrPtr rb_const_get;
+    internal static RB_VoidPtrPtrPtr rb_const_set;
+    internal static RB_PtrPtrPtrIntParamsPtr rb_funcallv;
+    internal static RB_PtrPtrPtrIntPtrAryBMDPtr rb_block_call;
+    internal static Action rb_need_block;
+    internal static RB_Bool rb_block_given_p;
+    internal static RB_Ptr rb_block_proc;
+    internal static RB_PtrPtr rb_yield;
+    internal static RB_PtrPtrPtr rb_ivar_get;
+    internal static RB_PtrPtrPtrPtr rb_ivar_set;
+    internal static RB_PtrPtrPtrInt rb_range_new;
+    internal static RB_IntPtrRefPtrRefPtrRefInt rb_range_values;
+    internal static RB_PtrPtrInt rb_reg_new_str;
+    internal static RB_PtrStrStr rb_file_open;
+    internal static RB_PtrPtr rb_marshal_load;
+    internal static RB_PtrPtrPtr rb_marshal_dump;
+    internal static RB_PtrPtrPtr rb_time_num_new;
     #endregion
+
+    private enum ErrorType
+    {
+        RuntimeError,
+        ArgumentError,
+        TypeError,
+        SystemExit
+    }
 }
 

@@ -19,4 +19,8 @@
     <Optimize>True</Optimize>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\NativeLibraryLoader\NativeLibraryLoader.csproj" />
+  </ItemGroup>
+
 </Project>
