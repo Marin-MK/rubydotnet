@@ -47,6 +47,8 @@ public class Tokenizer
         (@",", "argument_list")
     };
 
+    private static Dictionary<string, Regex> RegexCache = new Dictionary<string, Regex>();
+
     private int Caret;
     private string String;
 
@@ -97,27 +99,26 @@ public class Tokenizer
 
     private Token GetNextToken(bool UseDefaultToken = false)
     {
-        string text = String.Substring(Caret);
-        if (text.StartsWith("#{") && StringLevel > InterpolationLevel)
+        bool StringStartOrEnd = GetRegex("^\"").Match(String, Caret, String.Length - Caret).Success;
+        if (StringLevel > InterpolationLevel && GetRegex("^#{").Match(String, Caret, String.Length - Caret).Success)
         {
             Caret += 2;
             InterpolationLevel++;
             NextQuoteIsOpener = true;
             return new Token("open_string_interpolation", "#{", Caret - 2, 2);
         }
-        else if (text.StartsWith('}') && InterpolationLevel > 0)
+        else if (InterpolationLevel > 0 && GetRegex("^}").Match(String, Caret, String.Length - Caret).Success)
         {
             Caret += 1;
             InterpolationLevel--;
             NextQuoteIsOpener = false;
             return new Token("close_string_interpolation", "}", Caret - 1, 1);
         }
-        else if (text.StartsWith('"') || StringLevel > InterpolationLevel)
+        else if (StringLevel > InterpolationLevel || StringStartOrEnd)
         {
-            int startidx = NextQuoteIsOpener ? 1 : 0;
+            int startidx = Caret + (NextQuoteIsOpener ? 1 : 0);
             int idx = -1;
-            int increase = -1;
-            if (text.StartsWith('"'))
+            if (StringStartOrEnd)
             {
                 if (NextQuoteIsOpener)
                 {
@@ -131,74 +132,68 @@ public class Tokenizer
                     return new Token("string", "\"", Caret - 1, 1);
                 }
             }
-            for (int i = startidx; i < text.Length; i++)
+            for (int i = startidx; i < String.Length; i++)
             {
-                if (text[i] == '"' && (i == 0 || text[i - 1] != '\\'))
+                if (String[i] == '"' && (i == 0 || String[i - 1] != '\\'))
                 {
                     StringLevel--;
                     idx = i + 1;
-                    increase = idx;
                     break;
                 }
-                else if (text[i] == '{' && text[i - 1] == '#')
+                else if (String[i] == '{' && String[i - 1] == '#')
                 {
                     // Escape on \#{, but do not escape on \\#{
                     if (i - 3 >= 0)
                     {
-                        if (text[i - 2] == '\\' && text[i - 3] != '\\') continue;
+                        if (String[i - 2] == '\\' && String[i - 3] != '\\') continue;
                     }
                     else if (i - 2 >= 0)
                     {
-                        if (text[i - 2] == '\\') continue;
+                        if (String[i - 2] == '\\') continue;
                     }
                     idx = i - 1;
-                    increase = idx;
                     break;
                 }
             }
-            if (idx == -1)
-            {
-                idx = text.Length;
-                increase = idx;
-            }
+            if (idx == -1) idx = String.Length;
             int StartPos = Caret;
-            Caret += increase;
+            int Length = idx - Caret;
+            Caret += Length;
             NextQuoteIsOpener = true;
-            return new Token("string", text.Substring(0, idx), StartPos, idx);
+            return new Token("string", String.Substring(StartPos, Length), StartPos, Length);
         }
         if (String[Caret] == '\r' || String[Caret] == '\n' || String[Caret] == ' ')
         {
             Caret++;
             return GetNextToken();
         }
-        if (text.StartsWith("=begin"))
+        if (GetRegex("^=begin").Match(String, Caret, String.Length - Caret).Success)
         {
-            Match endmatch = Regex.Match(text, "[\r\n]+=end");
+            Match endmatch = GetRegex("[\r\n]+=end").Match(String, Caret, String.Length - Caret);
             int idx = 0;
-            if (!endmatch.Success) idx = text.Length;
+            if (!endmatch.Success) idx = String.Length;
             else idx = endmatch.Index + endmatch.Length;
             int StartPos = Caret;
-            Caret += idx;
-            return new Token("multiline_comment", text.Substring(0, idx), StartPos, idx);
+            int Length = idx - StartPos;
+            Caret += Length;
+            return new Token("multiline_comment", String.Substring(StartPos, Length), StartPos, Length);
         }
-        if (text.StartsWith("0x") || text.StartsWith("0X"))
+        Match allhexmatch = GetRegex(@"^0[xX][a-zA-Z0-9_]+").Match(String, Caret, String.Length - Caret);
+        if (allhexmatch.Success)
         {
-            Match m = Regex.Match(text, @"^0[xX][a-zA-Z0-9_]+");
-            if (m.Success)
+            string hexnum = allhexmatch.Groups[0].Value;
+            int StartPos = Caret;
+            Caret += hexnum.Length;
+            bool invalidhex = GetRegex(@"[g-zG-Z]").Match(hexnum, 2, hexnum.Length - 2).Success;
+            if (!hexnum.Contains("__") && hexnum[2] != '_' && !hexnum.EndsWith('_') && !invalidhex)
             {
-                string hexnum = m.Groups[0].Value;
-                int StartPos = Caret;
-                Caret += hexnum.Length;
-                if (!hexnum.Contains("__") && hexnum[2] != '_' && !hexnum.EndsWith('_') && !Regex.IsMatch(hexnum.Substring(2), @"[g-zG-Z]"))
-                {
-                    // Filter out hex numbers with two consecutive underscores, and hex numbers
-                    // beginning or ending with an underscore.
-                    return new Token("hex", hexnum, StartPos, hexnum.Length);
-                }
-                return new Token("invalid_hex", hexnum, StartPos, hexnum.Length);
+                // Filter out hex numbers with two consecutive underscores, and hex numbers
+                // beginning or ending with an underscore.
+                return new Token("hex", hexnum, StartPos, hexnum.Length);
             }
+            return new Token("invalid_hex", hexnum, StartPos, hexnum.Length);
         }
-        Match nummatch = Regex.Match(text, @"^\d+[\d+_]*");
+        Match nummatch = GetRegex(@"^\d+[\d+_]*").Match(String, Caret, String.Length - Caret);
         if (nummatch.Success)
         {
             string num = nummatch.Groups[0].Value;
@@ -214,9 +209,8 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            if (!text.StartsWith(Keywords[i])) continue;
             string pattern = "^" + Keywords[i] + @"($|[\r\n\. ])";
-            Match m = Regex.Match(text, pattern);
+            Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
             int StartPos = Caret;
             Caret += Keywords[i].Length;
@@ -225,7 +219,7 @@ public class Tokenizer
         for (int i = 0; i < Patterns.Count; i++)
         {
             (string RegExp, string TokenName) = Patterns[i];
-            Match match = Regex.Match(text, "^" + RegExp);
+            Match match = GetRegex("^" + RegExp).Match(String, Caret, String.Length - Caret);
             if (!match.Success) continue;
             int StartPos = Caret;
             Caret += match.Length;
@@ -235,19 +229,27 @@ public class Tokenizer
         if (UseDefaultToken)
         {
             int idx = -1;
-            for (int i = 0; i < text.Length; i++)
+            for (int i = Caret; i < String.Length; i++)
             {
-                if (text[i] == '\n' || text[i] == '\r' || text[i] == ' ')
+                if (String[i] == '\n' || String[i] == '\r' || String[i] == ' ')
                 {
                     idx = i;
                     break;
                 }
             }
-            if (idx == -1) idx = text.Length;
+            if (idx == -1) idx = String.Length;
             int StartPos = Caret;
-            Caret += idx;
-            return new Token("unknown", text.Substring(0, idx), StartPos, idx);
+            int Length = idx - StartPos;
+            Caret += Length;
+            return new Token("unknown", String.Substring(StartPos, Length), StartPos, Length);
         }
-        throw new Exception($"Unknown token: {text}");
+        throw new Exception($"Unknown token: {String[Caret]}");
+    }
+
+    private static Regex GetRegex(string Pattern)
+    {
+        if (RegexCache.ContainsKey(Pattern)) return RegexCache[Pattern];
+        RegexCache.Add(Pattern, new Regex(Pattern));
+        return RegexCache[Pattern];
     }
 }
