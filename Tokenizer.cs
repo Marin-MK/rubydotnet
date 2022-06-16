@@ -18,7 +18,7 @@ public class Tokenizer
 
     private static List<(string RegExp, string TokenName)> Patterns = new List<(string RegExp, string TokenName)>()
     {
-        (@"#.*?[\r\n]", "comment"),
+        (@"#.*?($|[\r\n])", "comment"),
         (@"/[^/]*/[eimnosux]*", "regex"),
         (@"'.*?(?<!\\)'", "string"),
         (@"[A-Z][A-Za-z0-9_:]*", "constant"),
@@ -215,9 +215,9 @@ public class Tokenizer
         for (int i = 0; i < Keywords.Count; i++)
         {
             if (!text.StartsWith(Keywords[i])) continue;
-            string pattern = "^" + Keywords[i] + @"[\r\n\. ]";
+            string pattern = "^" + Keywords[i] + @"($|[\r\n\. ])";
             Match m = Regex.Match(text, pattern);
-            if (text != Keywords[i] && !m.Success) continue;
+            if (!m.Success) continue;
             int StartPos = Caret;
             Caret += Keywords[i].Length;
             return new Token(Keywords[i], Keywords[i], StartPos, Keywords[i].Length);
