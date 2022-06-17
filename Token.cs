@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace rubydotnet;
 
-public class Token
+public class Token : ICloneable
 {
     public string Type;
     public string Value;
@@ -19,5 +19,10 @@ public class Token
         this.Value = Value;
         this.Index = Index;
         this.Length = Length;
+    }
+
+    public object Clone()
+    {
+        return new Token(this.Type, this.Value, this.Index, this.Length);
     }
 }
