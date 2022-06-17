@@ -13,13 +13,13 @@ public class Tokenizer
     {
         "class", "def", "if", "true", "false", "else", "end", "begin", "end", "rescue", "ensure",
         "return", "next", "break", "yield", "alias", "elsif", "case", "when", "module", "not", "and", "or",
-        "redo", "retry", "for", "undef", "unless", "super", "then", "while", "defined?", "self", "raise"
+        "redo", "retry", "for", "undef", "unless", "super", "then", "while", "defined?", "self", "raise", "do"
     };
 
     private static List<(string RegExp, string TokenName)> Patterns = new List<(string RegExp, string TokenName)>()
     {
         (@"#.*?($|[\r\n])", "comment"),
-        (@"/[^/]*/[eimnosux]*", "regex"),
+        (@"/([^ ]{0,2}|[^ ].*[^ ])/[eimnosux]*", "regex"),
         (@"'.*?(?<!\\)'", "string"),
         (@"[A-Z][A-Za-z0-9_:]*", "constant"),
         (@"[a-z_][A-Za-z0-9_:?]*", "variable_or_method"),
@@ -52,7 +52,7 @@ public class Tokenizer
     private int Caret;
     private string String;
 
-    public static List<Token> Tokenize(string String, bool FilterComments = false, bool UseDefaultToken = false)
+    public static List<Token> Tokenize(string String, bool FilterComments = false, bool UseDefaultToken = true)
     {
         Tokenizer tokenizer = new Tokenizer(String);
         return tokenizer.Run(FilterComments, UseDefaultToken);
@@ -64,7 +64,7 @@ public class Tokenizer
         this.String = String;
     }
 
-    private List<Token> Run(bool FilterComments = false, bool UseDefaultToken = false)
+    private List<Token> Run(bool FilterComments = false, bool UseDefaultToken = true)
     {
         List<Token> Tokens = new List<Token>();
 
@@ -73,11 +73,13 @@ public class Tokenizer
         while (HasToken())
         {
             Token t = GetNextToken(UseDefaultToken);
-            if (FilterComments && t.Type == "comment" || t.Type == "multiline_comment") continue;
+            if (t == null) break;
+            if (FilterComments && (t.Type == "comment" || t.Type == "multiline_comment")) continue;
             if (LastToken != null)
             {
                 if (t.Type == "variable_or_method" && LastToken.Type == "def") t.Type = "method_definition";
                 else if (t.Type == "constant" && LastToken.Type == "class") t.Type = "class_definition";
+                else if (t.Type == "constant" && LastToken.Type == "module") t.Type = "module_definition";
                 else if (t.Type == "parenthesis_open" && LastToken.Type == "variable_or_method") LastToken.Type = "method";
                 else if (t.Type == "empty_method" && LastToken.Type == "variable_or_method") LastToken.Type = "method";
             }
@@ -97,8 +99,9 @@ public class Tokenizer
     int InterpolationLevel = 0;
     bool NextQuoteIsOpener = true;
 
-    private Token GetNextToken(bool UseDefaultToken = false)
+    private Token GetNextToken(bool UseDefaultToken = true)
     {
+        if (Caret >= String.Length) return null;
         bool StringStartOrEnd = GetRegex("^\"").Match(String, Caret, String.Length - Caret).Success;
         if (StringLevel > InterpolationLevel && GetRegex("^#{").Match(String, Caret, String.Length - Caret).Success)
         {
@@ -132,15 +135,29 @@ public class Tokenizer
                     return new Token("string", "\"", Caret - 1, 1);
                 }
             }
+            bool LookingForInterpolationEnd = false;
             for (int i = startidx; i < String.Length; i++)
             {
-                if (String[i] == '"' && (i == 0 || String[i - 1] != '\\'))
+                if (String[i] == '"')
                 {
-                    StringLevel--;
-                    idx = i + 1;
-                    break;
+                    bool escaped = false;
+                    if (i - 2 >= 0)
+                    {
+                        if (String[i - 1] == '\\' && String[i - 2] == '\\') escaped = false;
+                        else if (String[i - 1] == '\\') escaped = true;
+                    }
+                    else if (i - 1 >= 0)
+                    {
+                        if (String[i - 1] == '\\') escaped = true;
+                    }
+                    if (!escaped)
+                    {
+                        StringLevel--;
+                        idx = i + 1;
+                        break;
+                    }
                 }
-                else if (String[i] == '{' && String[i - 1] == '#')
+                if (String[i] == '{' && String[i - 1] == '#')
                 {
                     // Escape on \#{, but do not escape on \\#{
                     if (i - 3 >= 0)
@@ -152,6 +169,11 @@ public class Tokenizer
                         if (String[i - 2] == '\\') continue;
                     }
                     idx = i - 1;
+                    LookingForInterpolationEnd = true;
+                    continue;
+                }
+                if (String[i] == '}' && LookingForInterpolationEnd)
+                {
                     break;
                 }
             }
@@ -162,7 +184,7 @@ public class Tokenizer
             NextQuoteIsOpener = true;
             return new Token("string", String.Substring(StartPos, Length), StartPos, Length);
         }
-        if (String[Caret] == '\r' || String[Caret] == '\n' || String[Caret] == ' ')
+        if (String[Caret] == '\r' || String[Caret] == '\n' || String[Caret] == '\t' || String[Caret] == ' ')
         {
             Caret++;
             return GetNextToken();
@@ -209,7 +231,7 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            string pattern = "^" + Keywords[i] + @"($|[\r\n\. ])";
+            string pattern = "^" + Keywords[i] + @"($|[\r\n\.\[\]\(\) ])";
             Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
             int StartPos = Caret;
@@ -226,24 +248,9 @@ public class Tokenizer
             string Value = match.Groups[0].Value;
             return new Token(TokenName, Value, StartPos, match.Length);
         }
-        if (UseDefaultToken)
-        {
-            int idx = -1;
-            for (int i = Caret; i < String.Length; i++)
-            {
-                if (String[i] == '\n' || String[i] == '\r' || String[i] == ' ')
-                {
-                    idx = i;
-                    break;
-                }
-            }
-            if (idx == -1) idx = String.Length;
-            int StartPos = Caret;
-            int Length = idx - StartPos;
-            Caret += Length;
-            return new Token("unknown", String.Substring(StartPos, Length), StartPos, Length);
-        }
-        throw new Exception($"Unknown token: {String[Caret]}");
+        Caret += 1;
+        if (UseDefaultToken) return new Token("unknown", String.Substring(Caret - 1, 1), Caret - 1, 1);
+        throw new Exception($"Unknown token: {String.Substring(Caret - 1, 1)}");
     }
 
     private static Regex GetRegex(string Pattern)
