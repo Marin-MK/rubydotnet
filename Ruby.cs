@@ -11,12 +11,10 @@ public static partial class Ruby
     public delegate IntPtr RubyMethod(IntPtr Self, IntPtr Args);
     public delegate IntPtr BlockMethod(IntPtr BlockArgs, IntPtr Self, IntPtr Args);
 
-    public const string Version = "2.7.0";
-
-    public static IntPtr True = (IntPtr)0x14;
-    public static IntPtr False = (IntPtr)0x00;
-    public static IntPtr Nil = (IntPtr)0x08;
-    public static IntPtr Undef = (IntPtr)0x34;
+    public static IntPtr True  = (IntPtr) 0x14;
+    public static IntPtr False = (IntPtr) 0x00;
+    public static IntPtr Nil   = (IntPtr) 0x08;
+    public static IntPtr Undef = (IntPtr) 0x34;
 
     static bool Initialized = false;
 
@@ -32,7 +30,8 @@ public static partial class Ruby
             string libgmp = path.Get("libgmp");
             string libssp = path.Get("libssp");
             string libwinpthread = path.Get("libwinpthread");
-            ruby = NativeLibrary.Load(rubypath, libgmp, libssp, libwinpthread);
+            string libz = path.Get("libz");
+            ruby = NativeLibrary.Load(rubypath, libgmp, libssp, libwinpthread, libz);
         }
         else if (NativeLibrary.Platform == Platform.Linux)
         {
@@ -78,8 +77,6 @@ public static partial class Ruby
         rb_range_values = ruby.GetFunction<RB_IntPtrRefPtrRefPtrRefInt>("rb_range_values");
         rb_reg_new_str = ruby.GetFunction<RB_PtrPtrInt>("rb_reg_new_str");
         rb_file_open = ruby.GetFunction<RB_PtrStrStr>("rb_file_open");
-        rb_marshal_load = ruby.GetFunction<RB_PtrPtr>("rb_marshal_load");
-        rb_marshal_dump = ruby.GetFunction<RB_PtrPtrPtr>("rb_marshal_dump");
         rb_time_num_new = ruby.GetFunction<RB_PtrPtrPtr>("rb_time_num_new");
         Array.rb_ary_new = ruby.GetFunction<RB_Ptr>("rb_ary_new");
         Array.rb_ary_entry = ruby.GetFunction<RB_PtrPtrInt>("rb_ary_entry");
@@ -96,6 +93,8 @@ public static partial class Ruby
         String.rb_str_new = ruby.GetFunction<RB_PtrStrInt>("rb_str_new");
         String.rb_utf8_str_new_cstr = ruby.GetFunction<RB_PtrPtr>("rb_utf8_str_new_cstr");
         String.rb_string_value_ptr = ruby.GetFunction<RB_PtrRefPtr>("rb_string_value_ptr");
+        Marshal.rb_marshal_load = ruby.GetFunction<RB_PtrPtr>("rb_marshal_load");
+        Marshal.rb_marshal_dump = ruby.GetFunction<RB_PtrPtrPtr>("rb_marshal_dump");
         IntPtr argc = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
         System.Runtime.InteropServices.Marshal.WriteInt32(argc, 0);
         IntPtr argv = System.Runtime.InteropServices.Marshal.AllocHGlobal(sizeof(int));
@@ -110,13 +109,13 @@ public static partial class Ruby
     public static void Pin(IntPtr Object)
     {
         if (GetGlobal("$__rdncache__") == Nil) SetGlobal("$__rdncache__", Array.Create());
-        if (Funcall(GetGlobal("$__rdncache__"), "include?", Object) == False) Funcall(GetGlobal("$__rdncache__"), "push", Object);
+        if (!Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Push(GetGlobal("$__rdncache__"), Object);
     }
 
     public static void Unpin(IntPtr Object)
     {
         if (GetGlobal("$__rdncache__") == Nil) return;
-        if (Funcall(GetGlobal("$__rdncache__"), "include?", Object) == True) Funcall(GetGlobal("$__rdncache__"), "delete", Object);
+        if (Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Delete(GetGlobal("$__rdncache__"), Object);
     }
 
     /// <summary>
@@ -215,8 +214,11 @@ public static partial class Ruby
 
     private static string FormatException()
     {
-        IntPtr Err = rb_gv_get("$!");
-        string type = String.FromPtr(Funcall(Funcall(Err, "class"), "to_s"));
+        Ruby.Eval("p $!");
+        IntPtr Err = rb_gv_get("!");
+        IntPtr ErrKlass = Funcall(Err, "class");
+        IntPtr ErrKlassStr = Funcall(ErrKlass, "to_s");
+        string type = String.FromPtr(ErrKlassStr);
         string currentdir = Directory.GetCurrentDirectory();
         currentdir = currentdir.Replace('\\', '/');
         string msg = type + ": ";
@@ -441,8 +443,6 @@ public static partial class Ruby
     internal static RB_IntPtrRefPtrRefPtrRefInt rb_range_values;
     internal static RB_PtrPtrInt rb_reg_new_str;
     internal static RB_PtrStrStr rb_file_open;
-    internal static RB_PtrPtr rb_marshal_load;
-    internal static RB_PtrPtrPtr rb_marshal_dump;
     internal static RB_PtrPtrPtr rb_time_num_new;
     #endregion
 

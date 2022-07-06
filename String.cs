@@ -30,7 +30,7 @@ public static partial class Ruby
         public static string FromPtr(IntPtr Value)
         {
             long len = Integer.FromPtr(Funcall(Value, "bytesize"));
-            return Marshal.PtrToStringUTF8(rb_string_value_ptr(ref Value), (int)len);
+            return System.Runtime.InteropServices.Marshal.PtrToStringUTF8(rb_string_value_ptr(ref Value), (int)len);
         }
 
         internal static RB_PtrStrInt rb_str_new;

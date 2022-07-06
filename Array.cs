@@ -16,9 +16,25 @@ public static partial class Ruby
             return rb_ary_entry(Object, Index);
         }
 
-        public static void Set(IntPtr Object, int Index, IntPtr Value)
+        public static IntPtr Set(IntPtr Object, int Index, IntPtr Value)
         {
             rb_ary_store(Object, Index, Value);
+            return Nil;
+        }
+
+        public static IntPtr Push(IntPtr Object, IntPtr Value)
+        {
+            return Funcall(Object, "push", Value);
+        }
+
+        public static bool Includes(IntPtr Object, IntPtr Value)
+        {
+            return Funcall(Object, "include?", Value) == True;
+        }
+
+        public static IntPtr Delete(IntPtr Object, IntPtr Value)
+        {
+            return Funcall(Object, "delete", Value);
         }
 
         public static IntPtr Create(int Size = 0)

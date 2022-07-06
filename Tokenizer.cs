@@ -11,7 +11,7 @@ public class Tokenizer
 {
     private static List<string> Keywords = new List<string>()
     {
-        "class", "def", "if", "true", "false", "else", "end", "begin", "end", "rescue", "ensure",
+        "class", "def", "if", "true", "false", "else", "end", "begin", "end", "rescue", "ensure", "until", "nil",
         "return", "next", "break", "yield", "alias", "elsif", "case", "when", "module", "not", "and", "or",
         "redo", "retry", "for", "undef", "unless", "super", "then", "while", "defined?", "self", "raise", "do"
     };
