@@ -23,7 +23,7 @@ public static partial class Ruby
         if (Initialized) return;
         NativeLibrary ruby;
         Console.WriteLine("Loading Ruby...");
-        PathPlatformInfo path = PathInfo.GetPlatform(Platform.Windows);
+        PathPlatformInfo path = PathInfo.GetPlatform(NativeLibrary.Platform);
         if (NativeLibrary.Platform == Platform.Windows)
         {
             string rubypath = path.Get("ruby");
