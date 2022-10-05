@@ -205,14 +205,32 @@ public static partial class Ruby
         return Result;
     }
 
+    public static bool Protect(ProtectedMethod Method)
+    {
+        IntPtr State = IntPtr.Zero;
+        IntPtr Result = rb_protect(Method, Nil, ref State);
+        if (State != IntPtr.Zero) return false;
+        return true;
+    }
+
+    public static IntPtr GetError()
+    {
+        return rb_gv_get("!");
+    }
+
+    public static string GetErrorType()
+    {
+        return String.FromPtr(Funcall(Funcall(GetError(), "class"), "to_s"));
+    }
+
     private static void RaiseException(bool PrintError = true, bool ThrowError = true)
     {
-        string msg = FormatException();
+        (string type, string msg) = FormatException();
         if (PrintError) Console.WriteLine(msg);
         if (ThrowError) throw new Exception(msg);
     }
 
-    private static string FormatException()
+    private static (string Type, string Message) FormatException()
     {
         Ruby.Eval("p $!");
         IntPtr Err = rb_gv_get("!");
@@ -275,7 +293,7 @@ public static partial class Ruby
                 msg += line;
             }
         }
-        return msg[0].ToString().ToUpper() + msg.Substring(1);
+        return (type, msg[0].ToString().ToUpper() + msg.Substring(1));
     }
 
     public static IntPtr Funcall(IntPtr Object, string Method, params IntPtr[] Args)

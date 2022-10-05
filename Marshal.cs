@@ -9,13 +9,7 @@ public static partial class Ruby
     {
         public static IntPtr Load(IntPtr Data)
         {
-            IntPtr ret = IntPtr.Zero;
-            SafeRuby(_ =>
-            {
-                ret = rb_marshal_load(Data);
-                return IntPtr.Zero;
-            });
-            return ret;
+            return rb_marshal_load(Data);
         }
 
         public static IntPtr Dump(IntPtr Data)
