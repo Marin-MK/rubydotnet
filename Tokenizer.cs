@@ -9,24 +9,57 @@ namespace rubydotnet;
 
 public class Tokenizer
 {
-    private static List<string> Keywords = new List<string>()
+    private static List<(string Keyword, bool AllowLeadingDot, bool AllowTrailingDot)> Keywords = new List<(string, bool, bool)>()
     {
-        "class", "def", "if", "true", "false", "else", "end", "begin", "end", "rescue", "ensure", "until", "nil",
-        "return", "next", "break", "yield", "alias", "elsif", "case", "when", "module", "not", "and", "or",
-        "redo", "retry", "for", "undef", "unless", "super", "then", "while", "defined?", "self", "raise", "do"
+        ("class", false, false),
+        ("def", false, false),
+        ("if", false, false),
+        ("true", false, true),
+        ("false", false, true),
+        ("else", false, false),
+        ("end", false, true),
+        ("begin", false, false),
+        ("rescue", false, false),
+        ("ensure", false, false),
+        ("until", false, false),
+        ("nil", false, true),
+        ("return", false, false),
+        ("next", false, false),
+        ("break", false, false),
+        ("yield", false, false),
+        ("alias", false, false),
+        ("elsif", false, false),
+        ("case", false, false),
+        ("when", false, false),
+        ("module", false, false),
+        ("not", false, false),
+        ("and", false, false),
+        ("or", false, false),
+        ("redo", false, false),
+        ("retry", false, false),
+        ("for", false, false),
+        ("undef", false, false),
+        ("unless", false, false),
+        ("super", false, true),
+        ("then", false, false),
+        ("while", false, false),
+        ("defined?", false, true),
+        ("self", false, true),
+        ("raise", false, false),
+        ("do", false, false)
     };
 
     private static List<(string RegExp, string TokenName)> Patterns = new List<(string RegExp, string TokenName)>()
     {
         (@"#.*?($|[\r\n])", "comment"),
-        (@"/([^ ]{0,2}|[^ ].*[^ ])/[eimnosux]*", "regex"),
         (@"'.*?(?<!\\)'", "string"),
-        (@"[A-Z][A-Za-z0-9_:]*", "constant"),
+        (@"[A-Z][A-Za-z0-9_]*", "constant"),
         (@"[a-z_][A-Za-z0-9_:?]*", "variable_or_method"),
         (@"@[A-Za-z0-9_:?]+", "instance_variable"),
         (@"@@[A-Za-z0-9_:?]+", "class_variable"),
         (@"\$[a-zA-Z0-9_]+", "global_variable"),
         (@"\$[!@\.=\*\$/\?~&`'+]", "global_variable"),
+        (@"::", "constant_access"),
         (@":[A-Za-z0-9_:?'""]+", "symbol"),
         (@"\(\)", "empty_method"),
         (@"\(", "parenthesis_open"),
@@ -44,7 +77,8 @@ public class Tokenizer
         (@"\{\}", "hash_initialization"),
         (@"[\[\]]", "array_access"),
         (@"[{}]", "block"),
-        (@",", "argument_list")
+        (@",", "argument_list"),
+
     };
 
     private static Dictionary<string, Regex> RegexCache = new Dictionary<string, Regex>();
@@ -102,6 +136,39 @@ public class Tokenizer
     private Token GetNextToken(bool UseDefaultToken = true)
     {
         if (Caret >= String.Length) return null;
+        if (String[Caret] == '/')
+        {
+            if (Caret < String.Length - 1 && String[Caret + 1] != ' ')
+            {
+                int StopIndex = -1;
+                string SeenMods = "";
+                for (int i = Caret + 1; i < String.Length; i++)
+                {
+                    if (StopIndex != -1)
+                    {
+                        if ("eimnosux".Contains(String[i]) && !SeenMods.Contains(String[i]))
+                        {
+                            SeenMods += String[i];
+                            StopIndex++;
+                            continue;
+                        }
+                        else break;
+                    }
+                    if (String[i] == '\n') break;
+                    if (String[i] == '/' && String[i - 1] != ' ' && String[i - 1] != '\\')
+                    {
+                        StopIndex = i + 1;
+                    }
+                }
+                if (StopIndex != -1)
+                {
+                    int StartPos = Caret;
+                    int Length = StopIndex - Caret;
+                    Caret += Length;
+                    return new Token("regex", String.Substring(StartPos, Length), StartPos, Length);
+                }
+            }
+        }
         bool StringStartOrEnd = GetRegex("^\"").Match(String, Caret, String.Length - Caret).Success;
         if (StringLevel > InterpolationLevel && GetRegex("^#{").Match(String, Caret, String.Length - Caret).Success)
         {
@@ -193,12 +260,25 @@ public class Tokenizer
         {
             Match endmatch = GetRegex("[\r\n]+=end").Match(String, Caret, String.Length - Caret);
             int idx = 0;
-            if (!endmatch.Success) idx = String.Length;
-            else idx = endmatch.Index + endmatch.Length;
             int StartPos = Caret;
-            int Length = idx - StartPos;
+            int Length = 0;
+            if (!endmatch.Success)
+            {
+                Length = 6;
+                Caret += Length;
+                return new Token("begin_multiline_comment", String.Substring(StartPos, Length), StartPos, Length);
+            }
+            else idx = endmatch.Index + endmatch.Length;
+            Length = idx - StartPos;
             Caret += Length;
             return new Token("multiline_comment", String.Substring(StartPos, Length), StartPos, Length);
+        }
+        if (GetRegex("^=end").Match(String, Caret, String.Length - Caret).Success)
+        {
+            int StartPos = Caret;
+            int Length = 4;
+            Caret += Length;
+            return new Token("end_multiline_comment", String.Substring(StartPos, Length), StartPos, Length);
         }
         Match allhexmatch = GetRegex(@"^0[xX][a-zA-Z0-9_]+").Match(String, Caret, String.Length - Caret);
         if (allhexmatch.Success)
@@ -231,12 +311,17 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            string pattern = "^" + Keywords[i] + @"($|[\r\n\.\[\]\(\) ])";
+            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.\[\]\(\) ])";
             Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
+            bool LastCharIsDot = Caret == 0 ? false : String[Caret - 1] == '.';
+            bool NextCharIsDot = Caret >= String.Length ? false : String[Caret + 1] == '.';
+            (string Keyword, bool AllowLeading, bool AllowTrailing) = Keywords[i];
+            if (LastCharIsDot && !AllowLeading) continue;
+            if (NextCharIsDot && !AllowTrailing) continue;
             int StartPos = Caret;
-            Caret += Keywords[i].Length;
-            return new Token(Keywords[i], Keywords[i], StartPos, Keywords[i].Length);
+            Caret += Keyword.Length;
+            return new Token(Keyword, Keyword, StartPos, Keyword.Length, true);
         }
         for (int i = 0; i < Patterns.Count; i++)
         {
