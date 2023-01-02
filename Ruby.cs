@@ -223,6 +223,11 @@ public static partial class Ruby
         return String.FromPtr(Funcall(Funcall(GetError(), "class"), "to_s"));
     }
 
+    public static string GetErrorText()
+    {
+        return FormatException().Message;
+    }
+
     private static void RaiseException(bool PrintError = true, bool ThrowError = true)
     {
         (string type, string msg) = FormatException();
