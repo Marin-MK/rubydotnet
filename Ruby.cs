@@ -106,18 +106,6 @@ public static partial class Ruby
         Console.WriteLine($"({version})");
     }
 
-    public static void Pin(IntPtr Object)
-    {
-        if (GetGlobal("$__rdncache__") == Nil) SetGlobal("$__rdncache__", Array.Create());
-        if (!Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Push(GetGlobal("$__rdncache__"), Object);
-    }
-
-    public static void Unpin(IntPtr Object)
-    {
-        if (GetGlobal("$__rdncache__") == Nil) return;
-        if (Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Delete(GetGlobal("$__rdncache__"), Object);
-    }
-
     /// <summary>
     /// Removes any non-standard classes and clears all non-standard global variables.
     /// Does not remove aliases.
@@ -324,6 +312,25 @@ public static partial class Ruby
     public static IntPtr SetIVar(IntPtr Object, string Name, IntPtr Value)
     {
         return rb_ivar_set(Object, rb_intern(Name), Value);
+    }
+
+    public static void Pin(IntPtr Object)
+    {
+        if (GetGlobal("$__rdncache__") == Nil) SetGlobal("$__rdncache__", Array.Create());
+        if (!Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Push(GetGlobal("$__rdncache__"), Object);
+    }
+
+    public static void Unpin(IntPtr Object)
+    {
+        if (GetGlobal("$__rdncache__") == Nil) return;
+        if (Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Delete(GetGlobal("$__rdncache__"), Object);
+    }
+
+    public static void Print(IntPtr Object)
+    {
+        Ruby.SetGlobal("$__print", Object);
+        Ruby.Eval("p $__print");
+        Ruby.SetGlobal("$__print", Nil);
     }
     #endregion
 
