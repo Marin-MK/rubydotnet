@@ -18,11 +18,10 @@ public static partial class Ruby
 
     static bool Initialized = false;
 
-    public static void Initialize(PathInfo PathInfo)
+    public static string? Initialize(PathInfo PathInfo)
     {
-        if (Initialized) return;
+        if (Initialized) return null;
         NativeLibrary ruby;
-        Console.WriteLine("Loading Ruby...");
         PathPlatformInfo path = PathInfo.GetPlatform(NativeLibrary.Platform);
         if (NativeLibrary.Platform == Platform.Windows)
         {
@@ -42,7 +41,6 @@ public static partial class Ruby
         {
             throw new NativeLibrary.UnsupportedPlatformException();
         }
-        Console.Write("Loaded Ruby ");
         
         ruby_sysinit = ruby.GetFunction<RB_VoidPtrPtr>("ruby_sysinit");
         ruby_init = ruby.GetFunction<Action>("ruby_init");
@@ -102,8 +100,7 @@ public static partial class Ruby
         ruby_sysinit(argc, argv);
         ruby_init();
         Initialized = true;
-        string version = String.FromPtr(rb_const_get(Object.Class, rb_intern("RUBY_VERSION")));
-        Console.WriteLine($"({version})");
+        return String.FromPtr(rb_const_get(Object.Class, rb_intern("RUBY_VERSION")));
     }
 
     /// <summary>
