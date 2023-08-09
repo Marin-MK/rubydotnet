@@ -6,44 +6,44 @@ namespace rubydotnet;
 
 public class Tokenizer
 {
-    private static List<(string Keyword, bool AllowLeadingDot, bool AllowTrailingDot)> Keywords = new List<(string, bool, bool)>()
+    private static List<(string Keyword, bool AllowLeadingDot, bool AllowTrailingDot, bool AllowLeadingComma, bool AllowingTrailingComma)> Keywords = new List<(string, bool, bool, bool, bool)>()
     {
-        ("class", false, false),
-        ("def", false, false),
-        ("if", false, false),
-        ("true", false, true),
-        ("false", false, true),
-        ("else", false, false),
-        ("end", false, true),
-        ("begin", false, false),
-        ("rescue", false, false),
-        ("ensure", false, false),
-        ("until", false, false),
-        ("nil", false, true),
-        ("return", false, false),
-        ("next", false, false),
-        ("break", false, false),
-        ("yield", false, false),
-        ("alias", false, false),
-        ("elsif", false, false),
-        ("case", false, false),
-        ("when", false, false),
-        ("module", false, false),
-        ("not", false, false),
-        ("and", false, false),
-        ("or", false, false),
-        ("redo", false, false),
-        ("retry", false, false),
-        ("for", false, false),
-        ("undef", false, false),
-        ("unless", false, false),
-        ("super", false, true),
-        ("then", false, false),
-        ("while", false, false),
-        ("defined?", false, true),
-        ("self", false, true),
-        ("raise", false, false),
-        ("do", false, false)
+        ("class", false, false, true, false),
+        ("def", false, false, true, false),
+        ("if", false, false, true, false),
+        ("true", false, true, true, true),
+        ("false", false, true, true, true),
+        ("else", false, false, false, false),
+        ("end", false, true, false, true),
+        ("begin", false, false, true, false),
+        ("rescue", false, false, false, false),
+        ("ensure", false, false, false, false),
+        ("until", false, false, true, false),
+        ("nil", false, true, true, true),
+        ("return", false, false, false, false),
+        ("next", false, false, false, false),
+        ("break", false, false, false, false),
+        ("yield", false, false, true, true),
+        ("alias", false, false, false, false),
+        ("elsif", false, false, false, false),
+        ("case", false, false, true, false),
+        ("when", false, false, false, false),
+        ("module", false, false, true, false),
+        ("not", false, false, true, false),
+        ("and", false, false, false, false),
+        ("or", false, false, false, false),
+        ("redo", false, false, false, false),
+        ("retry", false, false, false, false),
+        ("for", false, false, true, false),
+        ("undef", false, false, false, false),
+        ("unless", false, false, true, false),
+        ("super", false, true, true, true),
+        ("then", false, false, false, false),
+        ("while", false, false, true, false),
+        ("defined?", false, true, true, false),
+        ("self", false, true, true, true),
+        ("raise", false, false, false, false),
+        ("do", false, false, false, false)
     };
 
     private static List<(string RegExp, string TokenName)> Patterns = new List<(string RegExp, string TokenName)>()
@@ -308,14 +308,18 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.\[\]\(\) ])";
+            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.,\[\]\(\) ])";
             Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
             bool LastCharIsDot = Caret == 0 ? false : String[Caret - 1] == '.';
             bool NextCharIsDot = Caret >= String.Length ? false : String[Caret + 1] == '.';
-            (string Keyword, bool AllowLeading, bool AllowTrailing) = Keywords[i];
-            if (LastCharIsDot && !AllowLeading) continue;
-            if (NextCharIsDot && !AllowTrailing) continue;
+			bool LastCharIsComma = Caret == 0 ? false : String[Caret - 1] == ',';
+			bool NextCharIsComma = Caret >= String.Length ? false : String[Caret + 1] == ',';
+			(string Keyword, bool AllowLeadingDot, bool AllowTrailingDot, bool AllowLeadingComma, bool AllowTrailingComma) = Keywords[i];
+            if (LastCharIsDot && !AllowLeadingDot) continue;
+            if (NextCharIsDot && !AllowTrailingDot) continue;
+            if (LastCharIsComma && !AllowLeadingComma) continue;
+            if (NextCharIsComma && !AllowTrailingComma) continue;
             int StartPos = Caret;
             Caret += Keyword.Length;
             return new Token(Keyword, Keyword, StartPos, Keyword.Length, true);

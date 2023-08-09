@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace rubydotnet;
 
+[DebuggerDisplay("{Value} ({Type})")]
 public class Token : ICloneable
 {
     public string Type;
