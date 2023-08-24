@@ -199,29 +199,18 @@ public class Tokenizer
                     return new Token("string", "\"", Caret - 1, 1);
                 }
             }
-            bool LookingForInterpolationEnd = false;
             for (int i = startidx; i < String.Length; i++)
             {
-                if (String[i] == '"')
+                char c = String[i];
+                bool prev1Escape = i - 1 < 0 ? false : String[i - 1] == '\\';
+                bool prev2Escape = i - 2 < 0 ? false : String[i - 2] == '\\';
+                if (String[i] == '"' && (!prev1Escape || prev1Escape && prev2Escape))
                 {
-                    bool escaped = false;
-                    if (i - 2 >= 0)
-                    {
-                        if (String[i - 1] == '\\' && String[i - 2] == '\\') escaped = false;
-                        else if (String[i - 1] == '\\') escaped = true;
-                    }
-                    else if (i - 1 >= 0)
-                    {
-                        if (String[i - 1] == '\\') escaped = true;
-                    }
-                    if (!escaped)
-                    {
-                        StringLevel--;
-                        idx = i + 1;
-                        break;
-                    }
+                    StringLevel--;
+                    idx = i + 1;
+                    break;
                 }
-                if (String[i] == '{' && String[i - 1] == '#')
+                else if (String[i] == '{' && String[i - 1] == '#')
                 {
                     // Escape on \#{, but do not escape on \\#{
                     if (i - 3 >= 0)
@@ -233,11 +222,6 @@ public class Tokenizer
                         if (String[i - 2] == '\\') continue;
                     }
                     idx = i - 1;
-                    LookingForInterpolationEnd = true;
-                    continue;
-                }
-                if (String[i] == '}' && LookingForInterpolationEnd)
-                {
                     break;
                 }
             }
@@ -308,7 +292,7 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.,\[\]\(\) ])";
+            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.,\[\]\(\){} ])";
             Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
             bool LastCharIsDot = Caret == 0 ? false : String[Caret - 1] == '.';
