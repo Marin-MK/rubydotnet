@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-namespace rubydotnet;
+namespace rubydotnet.src;
 
 public class Tokenizer
 {
@@ -91,7 +91,7 @@ public class Tokenizer
 
     private Tokenizer(string String)
     {
-        this.Caret = 0;
+        Caret = 0;
         this.String = String;
     }
 
@@ -297,9 +297,9 @@ public class Tokenizer
             if (!m.Success) continue;
             bool LastCharIsDot = Caret == 0 ? false : String[Caret - 1] == '.';
             bool NextCharIsDot = Caret >= String.Length ? false : String[Caret + 1] == '.';
-			bool LastCharIsComma = Caret == 0 ? false : String[Caret - 1] == ',';
-			bool NextCharIsComma = Caret >= String.Length ? false : String[Caret + 1] == ',';
-			(string Keyword, bool AllowLeadingDot, bool AllowTrailingDot, bool AllowLeadingComma, bool AllowTrailingComma) = Keywords[i];
+            bool LastCharIsComma = Caret == 0 ? false : String[Caret - 1] == ',';
+            bool NextCharIsComma = Caret >= String.Length ? false : String[Caret + 1] == ',';
+            (string Keyword, bool AllowLeadingDot, bool AllowTrailingDot, bool AllowLeadingComma, bool AllowTrailingComma) = Keywords[i];
             if (LastCharIsDot && !AllowLeadingDot) continue;
             if (NextCharIsDot && !AllowTrailingDot) continue;
             if (LastCharIsComma && !AllowLeadingComma) continue;

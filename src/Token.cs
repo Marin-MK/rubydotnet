@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 
-namespace rubydotnet;
+namespace rubydotnet.src;
 
 [DebuggerDisplay("{Value} ({Type})")]
 public class Token : ICloneable
@@ -23,6 +23,6 @@ public class Token : ICloneable
 
     public object Clone()
     {
-        return new Token(this.Type, this.Value, this.Index, this.Length, IsKeyword);
+        return new Token(Type, Value, Index, Length, IsKeyword);
     }
 }

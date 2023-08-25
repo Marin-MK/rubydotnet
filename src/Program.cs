@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Text;
+using rubydotnet.src;
 
 namespace rubydotnet;
 
