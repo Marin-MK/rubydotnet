@@ -11,10 +11,9 @@ public static partial class Ruby
     public delegate IntPtr RubyMethod(IntPtr Self, IntPtr Args);
     public delegate IntPtr BlockMethod(IntPtr BlockArgs, IntPtr Self, IntPtr Args);
 
-    public static IntPtr True  = (IntPtr) 0x14;
-    public static IntPtr False = (IntPtr) 0x00;
-    public static IntPtr Nil   = (IntPtr) 0x08;
-    public static IntPtr Undef = (IntPtr) 0x34;
+    public static IntPtr True;
+    public static IntPtr False;
+    public static IntPtr Nil;
 
     static bool Initialized = false;
 
@@ -99,6 +98,9 @@ public static partial class Ruby
         System.Runtime.InteropServices.Marshal.WriteInt32(argv, 0);
         ruby_sysinit(argc, argv);
         ruby_init();
+        True = Eval("true");
+        False = Eval("false");
+        Nil = Eval("nil");
         Initialized = true;
         return String.FromPtr(rb_const_get(Object.Class, rb_intern("RUBY_VERSION")));
     }
@@ -313,8 +315,14 @@ public static partial class Ruby
 
     public static void Pin(IntPtr Object)
     {
-        if (GetGlobal("$__rdncache__") == Nil) SetGlobal("$__rdncache__", Array.Create());
-        if (!Array.Includes(GetGlobal("$__rdncache__"), Object)) Array.Push(GetGlobal("$__rdncache__"), Object);
+        nint rdnCache = GetGlobal("$__rdncache__");
+        if (rdnCache == Nil)
+        {
+            nint arrayHandle = Ruby.Array.Create();
+            SetGlobal("$__rdncache__", arrayHandle);
+            rdnCache = arrayHandle;
+        }
+        if (!Ruby.Array.Includes(rdnCache, Object)) Ruby.Array.Push(rdnCache, Object);
     }
 
     public static void Unpin(IntPtr Object)

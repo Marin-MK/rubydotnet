@@ -14,7 +14,7 @@ public static partial class Ruby
         {
             get
             {
-                if (_class == IntPtr.Zero) _class = rb_path2class("Object");
+                if (_class == IntPtr.Zero) _class = Eval("Object");
                 return _class;
             }
         }
