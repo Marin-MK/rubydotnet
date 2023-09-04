@@ -38,7 +38,8 @@ public static partial class Ruby
         }
         else
         {
-            throw new NativeLibrary.UnsupportedPlatformException();
+            string rubypath = path.Get("ruby");
+            ruby = NativeLibrary.Load(rubypath);
         }
         
         ruby_sysinit = ruby.GetFunction<RB_VoidPtrPtr>("ruby_sysinit");
