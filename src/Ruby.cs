@@ -29,7 +29,11 @@ public static partial class Ruby
             string libssp = path.Get("libssp");
             string libwinpthread = path.Get("libwinpthread");
             string libz = path.Get("libz");
-            ruby = NativeLibrary.Load(rubypath, libgmp, libssp, libwinpthread, libz);
+            NativeLibrary.Load(libgmp);
+            NativeLibrary.Load(libssp);
+            NativeLibrary.Load(libwinpthread);
+            NativeLibrary.Load(libz);
+            ruby = NativeLibrary.Load(rubypath);
         }
         else if (NativeLibrary.Platform == Platform.Linux)
         {
