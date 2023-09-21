@@ -292,7 +292,7 @@ public class Tokenizer
         }
         for (int i = 0; i < Keywords.Count; i++)
         {
-            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.,\[\]\(\){} ])";
+            string pattern = "^" + Keywords[i].Keyword + @"($|[\r\n\.,\[\]\(\){};: ])";
             Match m = GetRegex(pattern).Match(String, Caret, String.Length - Caret);
             if (!m.Success) continue;
             bool LastCharIsDot = Caret == 0 ? false : String[Caret - 1] == '.';
